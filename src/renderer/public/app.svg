@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="29.999992mm"
+   height="30.000004mm"
+   viewBox="0 0 29.999992 30.000004"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   sodipodi:docname="omus logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     inkscape:zoom="8.6590909"
+     inkscape:cx="298.24147"
+     inkscape:cy="477.2441"
+     inkscape:window-width="2560"
+     inkscape:window-height="1417"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:page
+       x="0"
+       y="0"
+       width="29.999992"
+       height="30.000004"
+       id="page2"
+       margin="0"
+       bleed="0" />
+  </sodipodi:namedview>
+  <defs
+     id="defs1">
+    <inkscape:path-effect
+       effect="fillet_chamfer"
+       id="path-effect1"
+       is_visible="true"
+       lpeversion="1"
+       nodesatellites_param="F,0,0,1,0,0,0,1 @ F,0,0,1,0,0,0,1 @ F,0,0,1,0,0,0,1 @ F,0,0,1,0,0,0,1 @ F,0,0,1,0,0,0,1 @ F,0,0,1,0,0,0,1 @ F,0,0,1,0,0,0,1 @ F,0,0,1,0,0,0,1"
+       radius="0"
+       unit="px"
+       method="auto"
+       mode="F"
+       chamfer_steps="1"
+       flexible="false"
+       use_knot_distance="true"
+       apply_no_radius="true"
+       apply_with_radius="true"
+       only_selected="false"
+       hide_knots="false" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-72.844444,-107.64199)">
+    <path
+       style="fill:#000000;stroke:#ffffff;stroke-width:0;stroke-linejoin:bevel;paint-order:stroke fill markers"
+       id="rect1"
+       width="30"
+       height="30"
+       x="72.844444"
+       y="107.55556"
+       inkscape:label="rect1"
+       inkscape:highlight-color="#c13bee"
+       inkscape:path-effect="#path-effect1"
+       sodipodi:type="rect"
+       d="m 77.381713,107.55556 h 20.925463 c 2.513644,0 4.537264,2.02362 4.537264,4.53727 v 20.92546 c 0,2.51365 -2.02362,4.53727 -4.537264,4.53727 H 77.381713 c -2.513647,0 -4.537269,-2.02362 -4.537269,-4.53727 v -20.92546 c 0,-2.51365 2.023622,-4.53727 4.537269,-4.53727 z"
+       ry="4.5372686"
+       transform="translate(0,0.08642416)" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12.7px;line-height:0;font-family:'Plus Jakarta Sans';-inkscape-font-specification:'Plus Jakarta Sans';letter-spacing:0.0714375px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;fill:#ffffff;stroke:#ffffff;stroke-width:1;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke fill markers"
+       x="77.998749"
+       y="122.12226"
+       id="text5"><tspan
+         sodipodi:role="line"
+         id="tspan5"
+         style="font-size:12.7px;letter-spacing:0.0714375px;stroke-width:1;stroke-dasharray:none"
+         x="77.998749"
+         y="122.12226">om</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12.7px;line-height:0;font-family:'Plus Jakarta Sans';-inkscape-font-specification:'Plus Jakarta Sans';letter-spacing:0.0714375px;word-spacing:0px;writing-mode:lr-tb;direction:ltr;fill:#ffffff;stroke:#ffffff;stroke-width:1;stroke-linejoin:round;stroke-dasharray:none;paint-order:stroke fill markers"
+       x="78.689201"
+       y="130.29491"
+       id="text6"><tspan
+         sodipodi:role="line"
+         id="tspan6"
+         style="stroke-width:1"
+         x="78.689201"
+         y="130.29491">us</tspan></text>
+  </g>
+</svg>
