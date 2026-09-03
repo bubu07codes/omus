@@ -336,8 +336,30 @@ export const GLOBAL_CSS = `
   /* Lyrics */
   .lyrics-container-view { height: 100%; display: flex; flex-direction: column; position: relative; z-index: 10; }
   .lyrics-header-clean { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; margin-bottom: 12px; border-bottom: 1px solid rgba(128,128,128,0.14); flex-wrap: wrap; gap: 12px; }
-  .lyrics-scroll { flex: 1; overflow-y: auto; padding: 30px 20px 48vh; scrollbar-gutter: stable; mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%); }
-  .lyric-line { font-weight: 800; line-height: 1.25; cursor: pointer; transition: all 0.35s cubic-bezier(0.25,1,0.5,1); overflow-wrap: anywhere; }
+  .lyrics-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 30px 20px 48vh; scrollbar-gutter: stable; mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%); }
+  /* Lyrics animation modes */
+  /* Compositor-friendly only (transform/opacity) + cheap text-shadow/color.
+     NEVER transition filter: blur() — it re-rasterizes the whole line per
+     frame and causes the stutter. */
+  .lyric-line {
+    font-weight: 800; line-height: 1.25; cursor: pointer;
+    transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-wrap: anywhere;
+  }
+  /* GPU-promote only the active line (keeps memory low while one layer exists). */
+  .lyric-line[data-active="true"],
+  .lyric-anim-scale[data-active="true"],
+  .lyric-anim-slide[data-active="true"],
+  .lyric-anim-glow[data-active="true"],
+  .lyric-anim-fade[data-active="true"],
+  .lyric-anim-wave[data-active="true"] {
+    will-change: transform, opacity;
+  }
+  .lyric-wave { animation: lyricWave 1.5s ease-in-out infinite; }
+  @keyframes lyricWave {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
   .lyrics-offset-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(128,128,128,0.14); color: var(--text-secondary); cursor: default; }
 
   /* Modals */
@@ -365,7 +387,7 @@ export const GLOBAL_CSS = `
     to { opacity: 1; transform: scale(1) rotate(0deg); }
   }
   .now-playing-enter { animation: nowPlayingEnter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .fullscreen-lyrics-scroll { height: 100%; min-width: 0; min-height: 0; overflow-y: auto; padding: 100px 24px 48vh 0; scrollbar-gutter: stable; mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%); }
+  .fullscreen-lyrics-scroll { height: 100%; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 100px 24px 48vh 0; scrollbar-gutter: stable; mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%); }
   .fullscreen-controls-bar { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(128,128,128,0.14); gap: 20px; }
   .lyrics-preview-box { background: var(--card-bg); border: 1px solid rgba(128,128,128,0.18); border-radius: 14px; padding: 24px; margin-top: 16px; overflow: hidden; position: relative; }
   .pl-track { padding: 10px 12px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.1); border-radius: 12px; margin-bottom: 7px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
@@ -416,12 +438,4 @@ export const GLOBAL_CSS = `
   }
   .title-bar-btn:hover { background: rgba(128,128,128,0.16); color: var(--text-primary); }
   .title-bar-close:hover { background: #e81123; color: #fff; }
-
-  /* Lyrics animation modes */
-  .lyric-line { transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1); }
-  .lyric-wave { animation: lyricWave 0.9s ease-in-out infinite; }
-  @keyframes lyricWave {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-  }
 `

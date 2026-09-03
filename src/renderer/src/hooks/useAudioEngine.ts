@@ -61,6 +61,9 @@ export function useAudioEngine(
   const [currentTime, setCurrentTime] = useState<number>(0)
   const [duration, setDuration] = useState<number>(0)
   const [volume, setVolume] = useState<number>(0.8)
+  // Always reflects the latest volume so callbacks built before a re-render
+  // (e.g. graph init during startup resume) can read the restored value.
+  const volumeRef = useRef<number>(0.8)
   const [isMuted, setIsMuted] = useState<boolean>(false)
   const [prevVolume, setPrevVolume] = useState<number>(0.8)
   const [playbackRate, setPlaybackRate] = useState<number>(1.0)
@@ -139,7 +142,7 @@ export function useAudioEngine(
     lastNode.connect(analyser)
 
     const masterGain = ctx.createGain()
-    masterGain.gain.value = calculateGain(volume)
+    masterGain.gain.value = calculateGain(volumeRef.current)
     const panner = ctx.createStereoPanner()
     panner.pan.value = balanceRef.current
     analyser.connect(panner)
@@ -200,7 +203,7 @@ export function useAudioEngine(
       setIsPlaying(false)
       setAudioError('Failed to decode or play audio file.')
     })
-  }, [volume, onTrackEnded])
+  }, [onTrackEnded])
 
   // Play a track with streaming URL
   const playTrack = useCallback(
@@ -209,6 +212,15 @@ export function useAudioEngine(
       const audioEl = audioElRef.current
       const ctx = audioCtxRef.current
       if (!audioEl || !ctx) return
+
+      // Ensure the graph uses the restored volume even if the graph was built
+      // before React re-rendered with the loaded settings.
+      const g0 = gainNodeRef.current
+      if (g0 && ctx) {
+        g0.gain.cancelScheduledValues(ctx.currentTime)
+        g0.gain.setValueAtTime(calculateGain(volumeRef.current), ctx.currentTime)
+      }
+      if (audioEl) audioEl.volume = volumeRef.current
 
       if (ctx.state === 'suspended') {
         await ctx.resume()
@@ -251,7 +263,10 @@ export function useAudioEngine(
         const now = c.currentTime
         g.gain.cancelScheduledValues(now)
         g.gain.setValueAtTime(0, now)
-        g.gain.linearRampToValueAtTime(calculateGain(volume), now + Math.min(t.durationSec, 4))
+        g.gain.linearRampToValueAtTime(
+          calculateGain(volumeRef.current),
+          now + Math.min(t.durationSec, 4)
+        )
       }
 
       // Sync OS MediaSession (guarded — an invalid artwork URL or missing
@@ -269,7 +284,7 @@ export function useAudioEngine(
         }
       }
     },
-    [initAudioGraph, playbackRate, volume]
+    [initAudioGraph, playbackRate]
   )
 
   const togglePlay = useCallback(async () => {
@@ -297,6 +312,15 @@ export function useAudioEngine(
       const audioEl = audioElRef.current
       const ctx = audioCtxRef.current
       if (!audioEl || !ctx) return Promise.resolve()
+
+      // Ensure the graph uses the restored volume even if the graph was built
+      // before React re-rendered with the loaded settings.
+      const g0 = gainNodeRef.current
+      if (g0 && ctx) {
+        g0.gain.cancelScheduledValues(ctx.currentTime)
+        g0.gain.setValueAtTime(calculateGain(volumeRef.current), ctx.currentTime)
+      }
+      if (audioEl) audioEl.volume = volumeRef.current
 
       if (ctx.state === 'suspended') {
         ctx.resume().catch(() => {})
@@ -343,11 +367,13 @@ export function useAudioEngine(
   const handleVolumeChange = useCallback(
     (v: number) => {
       setVolume(v)
+      volumeRef.current = v
       if (v > 0 && isMuted) setIsMuted(false)
       const actual = calculateGain(v)
       if (gainNodeRef.current && audioCtxRef.current) {
         gainNodeRef.current.gain.setValueAtTime(actual, audioCtxRef.current.currentTime)
       }
+      if (audioElRef.current) audioElRef.current.volume = v
     },
     [isMuted]
   )

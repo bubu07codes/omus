@@ -47,6 +47,10 @@ contextBridge.exposeInMainWorld('api', {
   importPlaylist: () => ipcRenderer.invoke('playlists:import-m3u'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings: unknown) => ipcRenderer.invoke('settings:set', settings),
+  // Best-effort synchronous flush used right before the window closes.
+  flushSettings: (settings: unknown) => ipcRenderer.send('settings:set-sync', settings),
+  // GitHub release checker ("Check for updates").
+  checkForUpdates: () => ipcRenderer.send('updates:check'),
   // Discord Rich Presence
   updateDiscordPresence: (activity: {
     title: string

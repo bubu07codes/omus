@@ -286,6 +286,12 @@ export default function App() {
   ]
 
   // Returns per-line style/class for the chosen lyric animation mode.
+  // Smoothness rules:
+  //  - animate ONLY compositor-friendly properties (transform, opacity) plus
+  //    cheap color/text-shadow; never animate `filter: blur()` (full re-raster
+  //    every frame = the worst lyric stutter).
+  //  - every changed property is covered by the transition string so nothing
+  //    "pops" instantly when a line toggles active/inactive.
   const getLyricAnim = (isActive: boolean, isPast: boolean) => {
     const origin =
       lyricAlignment === 'left'
@@ -296,58 +302,51 @@ export default function App() {
     const blurPx = isActive ? 0 : isPast ? lyricInactiveBlur : lyricInactiveBlur * 0.5
     const dim = isActive ? 1 : isPast ? lyricDimLevel * 0.6 : lyricDimLevel
     const color = isActive ? 'var(--text-primary)' : 'var(--text-secondary)'
+    // Static (non-animated) per-state value; opacity/transform carry the motion.
+    const base = { opacity: dim, color, filter: `blur(${blurPx}px)`, transformOrigin: origin }
+    const smooth =
+      'transform 0.55s cubic-bezier(0.22,1,0.36,1), opacity 0.55s ease, color 0.55s ease'
 
     switch (lyricAnimation) {
       case 'slide':
         return {
           className: '',
           style: {
+            ...base,
             transform: isActive
               ? 'translateX(0)'
               : isPast
-                ? 'translateX(16px)'
-                : 'translateX(-12px)',
-            transformOrigin: origin,
-            filter: `blur(${blurPx}px)`,
-            opacity: dim,
-            color,
-            transition: 'transform 0.45s cubic-bezier(0.22,1,0.36,1)'
+                ? 'translateX(18px)'
+                : 'translateX(-14px)',
+            transition: smooth
           }
         }
       case 'glow':
         return {
           className: '',
           style: {
-            transform: 'none',
-            transformOrigin: origin,
-            textShadow: isActive ? '0 0 18px var(--accent), 0 0 40px var(--accent)' : 'none',
-            filter: `blur(${blurPx}px)`,
-            opacity: dim,
-            color,
-            transition: 'text-shadow 0.4s ease'
+            ...base,
+            textShadow: isActive ? '0 0 18px var(--accent), 0 0 44px var(--accent)' : 'none',
+            transition: `${smooth}, text-shadow 0.55s ease`
           }
         }
       case 'fade':
         return {
           className: '',
           style: {
-            transform: 'none',
-            transformOrigin: origin,
+            ...base,
             filter: `blur(${isActive ? 0 : blurPx * 0.3}px)`,
-            opacity: dim,
-            color,
-            transition: 'opacity 0.5s ease, filter 0.5s ease'
+            transition: smooth
           }
         }
       case 'wave':
         return {
           className: isActive ? 'lyric-wave' : '',
           style: {
-            transform: 'none',
-            transformOrigin: origin,
-            filter: `blur(${blurPx}px)`,
-            opacity: dim,
-            color
+            ...base,
+            // transform is driven by the lyricWave keyframes (compositor-only),
+            // so we only transition opacity/color here — no conflict.
+            transition: 'opacity 0.55s ease, color 0.55s ease'
           }
         }
       case 'scale':
@@ -355,11 +354,9 @@ export default function App() {
         return {
           className: '',
           style: {
+            ...base,
             transform: isActive ? `scale(${lyricActiveScale})` : 'scale(0.96)',
-            transformOrigin: origin,
-            filter: `blur(${blurPx}px)`,
-            opacity: dim,
-            color
+            transition: smooth
           }
         }
     }
@@ -454,7 +451,17 @@ export default function App() {
       const elTopInContent = elRect.top - containerRect.top + container.scrollTop
       const target = elTopInContent - container.clientHeight * 0.38
       const max = Math.max(0, container.scrollHeight - container.clientHeight)
-      container.scrollTop = Math.max(0, Math.min(max, target))
+      const clamped = Math.max(0, Math.min(max, target))
+
+      // The theme's animation preset sets scroll-behavior to "smooth"; a
+      // programmatic scrollTop would then animate and fight the lyric line
+      // transitions, causing the stutter. Force an instant "auto" jump.
+      container.style.scrollBehavior = 'auto'
+      container.scrollTop = clamped
+      requestAnimationFrame(() => {
+        // Let the stylesheet rule take over again for any user/timer scrolling.
+        if (container) container.style.scrollBehavior = ''
+      })
     },
     []
   )
@@ -899,6 +906,22 @@ export default function App() {
     if (!hydratedRef.current || !window.api?.saveSettings) return
     window.api.saveSettings(buildSettingsRef.current())
   }, [isPlaying, currentTrack?.id])
+
+  // Flush the latest settings (volume included) as the window closes, so the
+  // debounced save above never loses the final state (e.g. set volume → quit).
+  useEffect(() => {
+    const flush = (): void => {
+      if (!hydratedRef.current) return
+      const settings = buildSettingsRef.current()
+      if (window.api?.flushSettings) window.api.flushSettings(settings)
+    }
+    window.addEventListener('pagehide', flush)
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      window.removeEventListener('beforeunload', flush)
+    }
+  }, [])
 
   // Save position every 5 seconds during playback
   useEffect(() => {
@@ -2757,6 +2780,7 @@ export default function App() {
                     <div
                       key={i}
                       className={animClass}
+                      data-active={isActive}
                       style={{
                         fontSize: lyricFontSize,
                         padding: `${lyricFontSize * lyricLineGap}px 0`,
@@ -3346,6 +3370,22 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              <div className="settings-row">
+                <div className="settings-row-text">
+                  <div className="settings-row-title">Updates</div>
+                  <div className="settings-row-desc">
+                    omus checks for new GitHub releases automatically at launch.
+                  </div>
+                </div>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => window.api?.checkForUpdates?.()}
+                  style={{ fontSize: 12, padding: '8px 14px' }}
+                >
+                  Check for Updates
+                </button>
+              </div>
             </div>
 
             <p className="eyebrow">Appearance & Customization</p>
@@ -4025,13 +4065,15 @@ export default function App() {
                     <div
                       key={i}
                       className={animClass}
+                      data-active={isActive}
                       style={{
                         fontSize: isActive ? lyricFontSize * 1.25 : lyricFontSize * 0.95,
                         fontWeight: 900,
                         padding: `${lyricFontSize * lyricLineGap * 0.9}px 0`,
                         cursor: 'pointer',
-                        transition: 'all 0.35s cubic-bezier(0.25,1,0.5,1)',
                         textTransform: lyricUppercase ? 'uppercase' : 'none',
+                        overflowWrap: 'anywhere',
+                        wordBreak: 'break-word',
                         ...anim.style
                       }}
                       onClick={() => seek(line.time)}

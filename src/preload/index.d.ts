@@ -34,6 +34,10 @@ export interface CustomAPI {
   importPlaylist: () => Promise<Playlist | null>
   getSettings: () => Promise<unknown>
   saveSettings: (settings: unknown) => Promise<boolean>
+  // Best-effort synchronous flush used right before the window closes.
+  flushSettings: (settings: unknown) => void
+  // GitHub release checker ("Check for updates").
+  checkForUpdates: () => void
   // Discord Rich Presence
   updateDiscordPresence: (activity: {
     title: string

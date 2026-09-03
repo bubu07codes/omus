@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol, shell } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
-import { createReadStream } from 'fs'
+import { createReadStream, writeFileSync } from 'fs'
 import { Readable } from 'stream'
 import Database from 'better-sqlite3'
 import {
@@ -10,6 +10,7 @@ import {
   destroyDiscordRPC,
   type DiscordActivity
 } from './discordRPC'
+import { checkForUpdates } from './updater'
 
 app.name = 'omus'
 
@@ -655,6 +656,21 @@ ipcMain.handle('settings:set', async (_, settings: unknown) => {
   }
 })
 
+// Synchronous "best-effort" write used for the final settings flush when the
+// window is closing (the async invoke above may not make it out in time).
+ipcMain.on('settings:set-sync', (_event, settings: unknown) => {
+  try {
+    writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8')
+  } catch {
+    /* non-fatal */
+  }
+})
+
+// Manual "Check for updates" from Settings.
+ipcMain.on('updates:check', () => {
+  void checkForUpdates(mainWindow, true)
+})
+
 // ----------------------------------------------------
 // WINDOW CONTROLS — driven by the custom frameless title bar
 // ----------------------------------------------------
@@ -760,6 +776,12 @@ app.whenReady().then(async () => {
 
   await initStorage()
   createWindow()
+
+  // Auto-check for updates shortly after launch (after the window has shown so
+  // it doesn't interrupt the first paint / loading screen).
+  setTimeout(() => {
+    void checkForUpdates(mainWindow)
+  }, 4000)
 })
 
 app.on('window-all-closed', () => {

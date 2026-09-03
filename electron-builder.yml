@@ -1,22 +1,37 @@
 appId: com.electron.app
+electronLanguages: ['en-US']
 productName: omus
+compression: maximum
 directories:
   buildResources: build
 files:
+  - 'out/**/*'
+  - 'node_modules/**/*'
+  - package.json
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/*.map'
+  - '!**/test/**'
+  - '!**/tests/**'
+  - '!**/docs/**'
+  - '!**/better-sqlite3/deps/**'
+  - '!**/better-sqlite3/src/**'
+  - '!**/better-sqlite3/build/**'
+  - '!**/better-sqlite3/prebuilds/*'
+  - 'node_modules/better-sqlite3/prebuilds/win32-x64/**/*'
+  - '!**/register-scheme/**'
 asarUnpack:
   - resources/**
 win:
   executableName: omus
 target:
-    - target: nsis
-      arch:
-        - x64
+  - target: nsis
+    arch:
+      - x64
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
