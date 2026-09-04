@@ -176,8 +176,46 @@ const MIME_BY_EXT: Record<string, string> = {
   '.aac': 'audio/aac',
   '.wma': 'audio/x-ms-wma',
   '.aiff': 'audio/aiff',
-  '.alac': 'audio/mp4'
+  '.alac': 'audio/mp4',
+  // Music video / video container mappings (used by the streaming protocol).
+  '.mp4': 'video/mp4',
+  '.m4v': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mkv': 'video/x-matroska',
+  '.mov': 'video/quicktime',
+  '.avi': 'video/x-msvideo',
+  '.flv': 'video/x-flv',
+  '.wmv': 'video/x-ms-wmv',
+  '.ogv': 'video/ogg',
+  '.mpg': 'video/mpeg',
+  '.mpeg': 'video/mpeg',
+  '.3gp': 'video/3gpp',
+  '.ts': 'video/mp2t',
+  '.m2ts': 'video/mp2t'
 }
+
+// Video containers accepted as music videos. Even when `music-metadata` cannot
+// read tags from a container, the file is still imported (the HTML media
+// element reports the real duration at playback time).
+const VIDEO_EXTS = new Set([
+  '.mp4',
+  '.m4v',
+  '.webm',
+  '.mkv',
+  '.mov',
+  '.avi',
+  '.flv',
+  '.wmv',
+  '.ogv',
+  '.mpg',
+  '.mpeg',
+  '.3gp',
+  '.ts',
+  '.m2ts'
+])
+
+// Everything the library can import — audio plus music-video containers.
+const MEDIA_EXTS = new Set([...AUDIO_EXTS, ...VIDEO_EXTS])
 
 interface ParsedTrack {
   sourcePath: string
@@ -204,6 +242,20 @@ interface SavedTrack {
 }
 
 async function parseAudioFile(sourcePath: string): Promise<ParsedTrack | null> {
+  const ext = path.extname(sourcePath).toLowerCase()
+  // Video containers may not carry audio-tag metadata; keep a usable fallback
+  // so the file still gets imported (duration is reported at playback time).
+  const fallback: ParsedTrack = {
+    sourcePath,
+    filename: path.basename(sourcePath),
+    title: path.parse(sourcePath).name,
+    artist: '',
+    album: '',
+    duration: 0,
+    cover: '',
+    lyrics: ''
+  }
+
   try {
     const { parseFile } = await import('music-metadata')
     const metadata = await parseFile(sourcePath, { duration: true, skipCovers: false })
@@ -213,17 +265,15 @@ async function parseAudioFile(sourcePath: string): Promise<ParsedTrack | null> {
       coverBase64 = `data:${pic.format};base64,${pic.data.toString('base64')}`
     }
     return {
-      sourcePath,
-      filename: path.basename(sourcePath),
-      title: metadata.common.title || path.parse(sourcePath).name,
+      ...fallback,
+      title: metadata.common.title || fallback.title,
       artist: metadata.common.artist || '',
       album: metadata.common.album || '',
       duration: metadata.format.duration || 0,
-      cover: coverBase64,
-      lyrics: ''
+      cover: coverBase64
     }
   } catch {
-    return null
+    return VIDEO_EXTS.has(ext) ? fallback : null
   }
 }
 
@@ -266,12 +316,33 @@ ipcMain.handle('library:get', () => {
 
 ipcMain.handle('library:parse-uploads', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
-    title: 'Select Audio Files',
+    title: 'Select Media Files',
     properties: ['openFile', 'multiSelections'],
     filters: [
       {
-        name: 'Audio Files',
-        extensions: ['mp3', 'flac', 'wav', 'm4a', 'ogg', 'aac', 'alac', 'aiff']
+        name: 'Media Files',
+        extensions: [
+          'mp3',
+          'flac',
+          'wav',
+          'm4a',
+          'ogg',
+          'aac',
+          'alac',
+          'aiff',
+          'mp4',
+          'm4v',
+          'webm',
+          'mkv',
+          'mov',
+          'avi',
+          'flv',
+          'wmv',
+          'ogv',
+          'mpg',
+          'mpeg',
+          '3gp'
+        ]
       }
     ]
   })
@@ -295,10 +366,10 @@ ipcMain.handle('library:parse-folder', async () => {
   if (canceled || filePaths.length === 0) return []
 
   const allFiles = await walkDir(filePaths[0])
-  const audioFiles = allFiles.filter((f) => AUDIO_EXTS.has(path.extname(f).toLowerCase()))
+  const mediaFiles = allFiles.filter((f) => MEDIA_EXTS.has(path.extname(f).toLowerCase()))
 
   const parsedTracks: ParsedTrack[] = []
-  for (const sourcePath of audioFiles) {
+  for (const sourcePath of mediaFiles) {
     const parsed = await parseAudioFile(sourcePath)
     if (parsed) parsedTracks.push(parsed)
   }
@@ -318,7 +389,7 @@ ipcMain.handle('library:parse-paths', async (_, paths: string[]) => {
 
   const parsedTracks: ParsedTrack[] = []
   for (const sourcePath of files) {
-    if (!AUDIO_EXTS.has(path.extname(sourcePath).toLowerCase())) continue
+    if (!MEDIA_EXTS.has(path.extname(sourcePath).toLowerCase())) continue
     const parsed = await parseAudioFile(sourcePath)
     if (parsed) parsedTracks.push(parsed)
   }

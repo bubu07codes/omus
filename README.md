@@ -26,6 +26,7 @@ No accounts. No subscriptions. No cloud uploads. Just your music, and ton of fun
 - Live audio visualizers
 - Waveform, frequency bars, radial modes, and more
 - Smooth volume controls and mute
+- Music video support (mp4, webm, mkv, mov,and more — watch the picture in fullscreen while EQ/visualizer keep running)
 
 ### Lyrics
 

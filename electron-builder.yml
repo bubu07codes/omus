@@ -1,4 +1,4 @@
-appId: com.electron.app
+appId: com.omus.app
 electronLanguages: ['en-US']
 productName: omus
 compression: maximum
@@ -20,12 +20,10 @@ files:
   - '!**/docs/**'
   - '!**/better-sqlite3/deps/**'
   - '!**/better-sqlite3/src/**'
-  - '!**/better-sqlite3/build/**'
-  - '!**/better-sqlite3/prebuilds/*'
-  - 'node_modules/better-sqlite3/prebuilds/win32-x64/**/*'
   - '!**/register-scheme/**'
 asarUnpack:
   - resources/**
+  - '**/*.node'
 win:
   executableName: omus
 target:
@@ -56,7 +54,7 @@ linux:
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
-npmRebuild: false
+npmRebuild: true
 publish:
   provider: github
   owner: bubu07codes

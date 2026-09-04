@@ -1,5 +1,6 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, webFrame } from 'electron'
 import type { PendingTrack } from '../renderer/src/types'
+import os from 'os'
 
 contextBridge.exposeInMainWorld('api', {
   getMediaUrl: (filepath: string) => `omus-media://audio?path=${encodeURIComponent(filepath)}`,
@@ -72,5 +73,28 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.removeListener('window:maximized', listener)
     }
   },
-  platform: process.platform
+  setZoomFactor: (factor: number) => {
+    try {
+      webFrame.setZoomFactor(factor)
+    } catch {
+      /* empty */
+    }
+  },
+  getZoomFactor: () => {
+    try {
+      return webFrame.getZoomFactor()
+    } catch {
+      return 1
+    }
+  },
+  platform: process.platform,
+
+  getSystemInfo: () => ({
+    platform: `${os.type()} ${os.arch()} (${os.release()})`,
+    cpu: os.cpus()[0]?.model ?? 'Unknown CPU',
+    cpusCount: os.cpus().length,
+    totalMemory: `${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)} GB`,
+    freeMemory: `${(os.freemem() / 1024 / 1024 / 1024).toFixed(2)} GB`,
+    userLanguage: navigator.language
+  })
 })

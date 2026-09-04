@@ -53,6 +53,8 @@ export interface CustomAPI {
   windowToggleMaximize: () => Promise<boolean>
   isWindowMaximized: () => Promise<boolean>
   onWindowMaximizeChange: (callback: (maximized: boolean) => void) => () => void
+  setZoomFactor?: (factor: number) => void
+  getZoomFactor?: () => number
   platform: NodeJS.Platform
 }
 

@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Rows3,
   Rows2,
+  Clock3,
   Sparkles,
   Heart,
   Maximize2,
@@ -41,11 +42,13 @@ import {
   ArrowDownAZ,
   Sliders,
   Moon,
-  ListPlus,
-  FolderOpen,
   Upload,
   Edit3,
-  GripVertical
+  GripVertical,
+  Video,
+  Flame,
+  TrendingUp,
+  ListMusic
 } from 'lucide-react'
 import {
   Track,
@@ -77,8 +80,9 @@ import {
   parseGradient
 } from './constants/presets'
 import { GLOBAL_CSS } from './constants/globalCss'
+import { isVideoFile } from './constants/media'
 import { PlaylistCoverArt } from './components/Shared/PlaylistCoverArt'
-import { ContextMenu, ContextMenuOption } from './components/Shared/ContextMenu'
+import { TrackContextMenu, TrackMenuHandlers } from './components/Shared/TrackContextMenu'
 import { TitleBar } from './components/TitleBar'
 import { LoadingScreen } from './components/LoadingScreen'
 
@@ -135,6 +139,9 @@ interface SavedSettings {
   discordEnabled?: boolean
   lastTrackId?: string
   lastPositionSecs?: number
+  playCounts?: Record<string, number>
+  recentlyPlayed?: string[]
+  uiScale?: number
 }
 
 export default function App() {
@@ -154,12 +161,12 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState<number | null>(null)
 
   // ---- Views & Navigation ----
-  const [view, setView] = useState<'library' | 'playlists' | 'queue' | 'lyrics' | 'settings'>(
-    'library'
-  )
-  const [previousView, setPreviousView] = useState<'library' | 'playlists' | 'queue' | 'settings'>(
-    'library'
-  )
+  const [view, setView] = useState<
+    'home' | 'library' | 'playlists' | 'queue' | 'lyrics' | 'settings'
+  >('home')
+  const [previousView, setPreviousView] = useState<
+    'home' | 'library' | 'playlists' | 'queue' | 'settings'
+  >('home')
   const [searchQuery, setSearchQuery] = useState('')
   const [libraryLayout, setLibraryLayout] = useState<'grid' | 'table' | 'group'>('table')
   const [libraryDensity, setLibraryDensity] = useState<'comfortable' | 'compact'>('comfortable')
@@ -177,6 +184,18 @@ export default function App() {
   const [resumePlayback, setResumePlayback] = useState(true)
   const [autoFetchLyrics, setAutoFetchLyrics] = useState(true)
   const [customTrackOrder, setCustomTrackOrder] = useState<string[] | null>(null)
+
+  // ---- Play history (lightweight, persisted via settings) ----
+  // playCounts: how many times each track has been played → drives "Most played"
+  // and "Top artists" on the Home screen. recentlyPlayed: a capped, most-recent-
+  // first trail of track ids → the "Continue listening" hero and recently rail.
+  const [playCounts, setPlayCounts] = useState<Record<string, number>>({})
+  const [recentlyPlayed, setRecentlyPlayed] = useState<string[]>([])
+  // In-Home album / artist detail navigation (e.g. clicking an album tile on
+  // the Home grid swaps the grid for this album's / artist's dedicated view).
+  const [homeDetail, setHomeDetail] = useState<
+    { kind: 'album'; key: string } | { kind: 'artist'; name: string } | null
+  >(null)
   const [songTransitionEnabled, setSongTransitionEnabled] = useState(false)
   const [songTransitionDuration, setSongTransitionDuration] = useState(2)
   const hydratedRef = useRef(false)
@@ -193,6 +212,10 @@ export default function App() {
   // ---- Modals / Overlays ----
   const [showCoverModal, setShowCoverModal] = useState(false)
   const [isFullscreenCover, setIsFullscreenCover] = useState(false)
+  // Fullscreen "chrome" (top close bar, visualizer, bottom playback controls)
+  // is hidden at rest — only the cover + info + lyrics idle on screen. Any
+  // cursor movement wakes it, and it fades again after a few seconds of rest.
+  const [fsUiVisible, setFsUiVisible] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isEqOpen, setIsEqOpen] = useState(false)
   const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false)
@@ -223,14 +246,23 @@ export default function App() {
   const fullscreenProgressRef = useRef<HTMLDivElement>(null)
   const lyricsContainerRef = useRef<HTMLDivElement>(null)
   const fullscreenLyricsRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  // Latest active lyric line for effects that must read it without re-running
+  // (e.g. the fullscreen ResizeObserver which re-centers on layout changes).
+  const activeLyricIndexRef = useRef<number>(-1)
+  // Timer that hides the fullscreen playback chrome after the cursor rests.
+  const fsHideTimerRef = useRef<number | null>(null)
 
   // ---- Context menu ----
+  // The shared track context menu (right-click on any track, in any view).
+  // `onPlay` is captured per-view so "Play Now" always uses the correct source
+  // list; everything else lives inside the reusable <TrackContextMenu />.
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
-    trackId: string
-    trackIdx: number
+    track: Track
     fromPlaylist?: boolean
+    onPlay: () => void
   } | null>(null)
 
   // ---- Library grouping drag state ----
@@ -250,6 +282,16 @@ export default function App() {
   const [customCssInput, setCustomCssInput] = useState('')
   const [currentFont, setCurrentFont] = useState<string>('Original')
   const [animId, setAnimId] = useState<string>('modern')
+
+  // Overall UI scale (roughly 70% – 160%). Applied natively via Electron's
+  // webFrame.setZoomFactor, so every unit scales together. Ranges are clamped.
+  const [uiScale, setUiScale] = useState<number>(1.0)
+  const clampUiScale = (v: number): number =>
+    Math.min(1.6, Math.max(0.7, Math.round(v * 100) / 100))
+  const changeUiScale = useCallback(
+    (delta: number): void => setUiScale((prev) => clampUiScale(prev + delta)),
+    []
+  )
 
   const selectedFontPreset = PRESET_FONTS.find((f) => f.name === currentFont)
   const activeFontFamily = selectedFontPreset
@@ -484,6 +526,73 @@ export default function App() {
     }
   }, [isFullscreenCover, activeLyricIndex, scrollLyricToCenter])
 
+  // Keep the ref in sync so resize-driven re-centering reads the live index.
+  useEffect(() => {
+    activeLyricIndexRef.current = activeLyricIndex
+  }, [activeLyricIndex])
+
+  // Never let a layout change (window/fullscreen resize, font load, lyric font
+  // setting tweaks) leave the active line clipped under the fade masks or the
+  // panel edges — re-center whenever the panel's box changes.
+  useEffect(() => {
+    if (!isFullscreenCover) return
+    const container = fullscreenLyricsRef.current
+    if (!container) return
+    const ro = new ResizeObserver(() => {
+      if (activeLyricIndexRef.current >= 0) {
+        scrollLyricToCenter(container, activeLyricIndexRef.current)
+      }
+    })
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [isFullscreenCover, scrollLyricToCenter])
+
+  // ---- Fullscreen auto-hiding playback chrome ----
+  const armFsHideTimer = (): void => {
+    if (fsHideTimerRef.current) window.clearTimeout(fsHideTimerRef.current)
+    fsHideTimerRef.current = window.setTimeout(() => setFsUiVisible(false), 3200)
+  }
+
+  // Wake the chrome on cursor movement: show it immediately and re-arm the hide
+  // timer so it only disappears once the cursor stays still for a few seconds.
+  const wakeFsControls = (): void => {
+    setFsUiVisible(true)
+    armFsHideTimer()
+  }
+
+  // Pause the hide-timer while the cursor hovers directly over the chrome bars.
+  const holdFsControls = (): void => {
+    if (fsHideTimerRef.current) {
+      window.clearTimeout(fsHideTimerRef.current)
+      fsHideTimerRef.current = null
+    }
+  }
+
+  const releaseFsControls = (): void => {
+    if (fsUiVisible) armFsHideTimer()
+  }
+
+  const clearFsHideTimer = (): void => {
+    if (fsHideTimerRef.current) {
+      window.clearTimeout(fsHideTimerRef.current)
+      fsHideTimerRef.current = null
+    }
+  }
+
+  // Opening / closing the fullscreen view resets its chrome so it always starts
+  // hidden at rest and never leaks a pending hide-timer between sessions.
+  const toggleFullscreen = (): void => {
+    clearFsHideTimer()
+    setFsUiVisible(false)
+    setIsFullscreenCover((v) => !v)
+  }
+
+  const closeFullscreen = (): void => {
+    clearFsHideTimer()
+    setFsUiVisible(false)
+    setIsFullscreenCover(false)
+  }
+
   // MediaSession position state
   useEffect(() => {
     if ('mediaSession' in navigator && duration > 0) {
@@ -520,6 +629,14 @@ export default function App() {
     [autoFetchLyrics, fetchLyricsFromOnline, persistLyrics]
   )
 
+  // Count every play and keep the recent trail. Called from the single choke
+  // point that actually starts playback (loadAndPlayIndex), so manual plays,
+  // skips, nexts and auto-advances all register — but startup resume does not.
+  const recordPlay = useCallback((trackId: string): void => {
+    setPlayCounts((prev) => ({ ...prev, [trackId]: (prev[trackId] || 0) + 1 }))
+    setRecentlyPlayed((prev) => [trackId, ...prev.filter((id) => id !== trackId)].slice(0, 100))
+  }, [])
+
   // ----- Load track at index -----
   const loadAndPlayIndex = useCallback(
     async (index: number, customQueue?: Track[]) => {
@@ -531,10 +648,11 @@ export default function App() {
       setCurrentIndex(index)
       setRawLyrics(track.lyrics || '')
       maybeAutoFetchLyrics(track)
+      recordPlay(track.id)
 
       await playTrack(track)
     },
-    [queue, playTrack, setRawLyrics, maybeAutoFetchLyrics]
+    [queue, playTrack, setRawLyrics, maybeAutoFetchLyrics, recordPlay]
   )
 
   const advanceToNext = useCallback(() => {
@@ -644,6 +762,7 @@ export default function App() {
             if (saved.customCss) setCustomCssInput(saved.customCss)
             if (saved.fontName) setCurrentFont(saved.fontName)
             if (saved.animId) setAnimId(saved.animId)
+            if (typeof saved.uiScale === 'number') setUiScale(saved.uiScale)
             if (saved.libraryLayout) setLibraryLayout(saved.libraryLayout)
             if (saved.libraryDensity) setLibraryDensity(saved.libraryDensity)
             if (typeof saved.volume === 'number') handleVolumeChange(saved.volume)
@@ -684,6 +803,14 @@ export default function App() {
             if (typeof saved.eqBalance === 'number') setBalance(saved.eqBalance)
             if (saved.lyricAnimation) setLyricAnimation(saved.lyricAnimation)
             if (typeof saved.discordEnabled === 'boolean') setDiscordEnabled(saved.discordEnabled)
+            if (saved.playCounts && typeof saved.playCounts === 'object')
+              setPlayCounts((prev) => ({ ...prev, ...saved.playCounts }))
+            if (Array.isArray(saved.recentlyPlayed))
+              setRecentlyPlayed(
+                saved.recentlyPlayed
+                  .filter((id): id is string => typeof id === 'string')
+                  .slice(0, 100)
+              )
 
             if (saved.resumePlayback !== false && saved.lastTrackId && storedTracks.length > 0) {
               const idx = storedTracks.findIndex((t: Track) => t.id === saved.lastTrackId)
@@ -719,7 +846,7 @@ export default function App() {
     if (view === 'lyrics') {
       setView(previousView || 'library')
     } else {
-      setPreviousView(view as 'library' | 'playlists' | 'queue' | 'settings')
+      setPreviousView(view as 'home' | 'library' | 'playlists' | 'queue' | 'settings')
       setView('lyrics')
     }
   }
@@ -749,12 +876,24 @@ export default function App() {
         toggleMute()
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault()
+        if (fsHideTimerRef.current) {
+          window.clearTimeout(fsHideTimerRef.current)
+          fsHideTimerRef.current = null
+        }
+        setFsUiVisible(false)
         setIsFullscreenCover((v) => !v)
       } else if (e.key === 'e' || e.key === 'E') {
         e.preventDefault()
         setIsEqOpen((v) => !v)
       } else if (e.key === 'Escape') {
-        if (isFullscreenCover) setIsFullscreenCover(false)
+        if (isFullscreenCover) {
+          if (fsHideTimerRef.current) {
+            window.clearTimeout(fsHideTimerRef.current)
+            fsHideTimerRef.current = null
+          }
+          setFsUiVisible(false)
+          setIsFullscreenCover(false)
+        }
         if (isEqOpen) setIsEqOpen(false)
         if (isSleepTimerOpen) setIsSleepTimerOpen(false)
         if (contextMenu) setContextMenu(null)
@@ -814,7 +953,10 @@ export default function App() {
       lyricAnimation,
       discordEnabled,
       lastTrackId: currentTrack?.id || null,
-      lastPositionSecs: Math.floor(currentTime)
+      lastPositionSecs: Math.floor(currentTime),
+      playCounts,
+      recentlyPlayed,
+      uiScale
     }),
     [
       currentTheme,
@@ -852,7 +994,10 @@ export default function App() {
       lyricAnimation,
       discordEnabled,
       currentTrack,
-      currentTime
+      currentTime,
+      playCounts,
+      recentlyPlayed,
+      uiScale
     ]
   )
 
@@ -860,6 +1005,23 @@ export default function App() {
   useEffect(() => {
     buildSettingsRef.current = buildSettings
   })
+
+  // Apply the UI scale to Electron's webFrame so the whole interface scales.
+  useEffect(() => {
+    if (window.api?.setZoomFactor) window.api.setZoomFactor(uiScale)
+  }, [uiScale])
+
+  // Ctrl + mouse wheel anywhere zooms the interface up/down and persists.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent): void => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      const dy = (e as unknown as { deltaY?: number }).deltaY ?? 0
+      changeUiScale(dy < 0 ? 0.05 : -0.05)
+    }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [changeUiScale])
 
   useEffect(() => {
     if (!hydratedRef.current || !window.api?.saveSettings) return
@@ -899,7 +1061,10 @@ export default function App() {
     eqBands,
     balance,
     lyricAnimation,
-    discordEnabled
+    discordEnabled,
+    playCounts,
+    recentlyPlayed,
+    uiScale
   ])
 
   useEffect(() => {
@@ -942,6 +1107,83 @@ export default function App() {
   useEffect(() => {
     currentTimeRef.current = currentTime
   }, [currentTime])
+
+  // ---- Music video mirror (fullscreen) ----
+  // Music videos play through the regular audio engine (EQ, volume, visualizer
+  // all keep working). The fullscreen <video> is therefore rendered *muted* and
+  // acts as a picture-only mirror that stays frame-synced to the audio engine.
+  const isVideoTrack = currentTrack ? isVideoFile(currentTrack.filepath) : false
+  const videoSrc =
+    isVideoTrack && currentTrack && window.api?.getMediaUrl
+      ? window.api.getMediaUrl(currentTrack.filepath)
+      : null
+
+  useEffect(() => {
+    if (!isFullscreenCover || !isVideoTrack || !videoSrc) return
+    const video = videoRef.current
+    if (!video) return
+
+    // Snap to the audio engine's position the moment the picture is ready.
+    const snapToAudio = (): void => {
+      const audioT = currentTimeRef.current || 0
+      const maxT =
+        typeof video.duration === 'number' && isFinite(video.duration) ? video.duration : audioT
+      try {
+        video.currentTime = Math.max(0, Math.min(maxT, audioT))
+      } catch {
+        /* not seekable yet */
+      }
+    }
+
+    if (video.readyState >= 1) snapToAudio()
+    else video.addEventListener('loadedmetadata', snapToAudio, { once: true })
+
+    // Periodic drift correction + play/pause mirroring. Only nudges the video
+    // when it drifts more than a small amount so it never jitters frame-to-frame.
+    const interval = setInterval(() => {
+      if (!video) return
+      if (isPlaying) {
+        const p = video.play()
+        if (p && typeof p.catch === 'function') p.catch(() => {})
+      } else {
+        video.pause()
+      }
+      const audioT = currentTimeRef.current || 0
+      try {
+        if (Math.abs(video.currentTime - audioT) > 0.35) {
+          const maxT =
+            typeof video.duration === 'number' && isFinite(video.duration) ? video.duration : audioT
+          video.currentTime = Math.max(0, Math.min(maxT, audioT))
+        }
+      } catch {
+        /* ignore transient seek errors */
+      }
+    }, 350)
+
+    return () => {
+      clearInterval(interval)
+      video.removeEventListener('loadedmetadata', snapToAudio)
+      video.pause()
+    }
+  }, [isFullscreenCover, isVideoTrack, videoSrc, currentTrack, isPlaying])
+
+  // Snap the picture instantly on seeks/scrubs, instead of waiting for the next
+  // drift-correction tick (which would show a stale frame for up to 350ms)..
+  useEffect(() => {
+    if (!isFullscreenCover || !isVideoTrack) return
+    const video = videoRef.current
+    if (!video) return
+    const audioT = currentTimeRef.current || 0
+    try {
+      if (Math.abs((video.currentTime || 0) - audioT) > 0.5) {
+        const maxT =
+          typeof video.duration === 'number' && isFinite(video.duration) ? video.duration : audioT
+        video.currentTime = Math.max(0, Math.min(maxT, audioT))
+      }
+    } catch {
+      /* not seekable yet */
+    }
+  }, [currentTime, isFullscreenCover, isVideoTrack])
   useEffect(() => {
     if (!discordEnabled || !window.api?.updateDiscordPresence) {
       window.api?.clearDiscordPresence?.()
@@ -1160,8 +1402,8 @@ export default function App() {
   }
 
   // ---- Track deletion ----
-  const handleDeleteTrack = async (trackId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleDeleteTrack = async (trackId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
     if (confirmBeforeDelete && !window.confirm('Delete this track? This cannot be undone.')) return
     const success = await window.api.deleteTrack(trackId)
     if (success) {
@@ -1440,92 +1682,49 @@ export default function App() {
   }
 
   // ---- Context Menu actions ----
-  const buildContextMenuOptions = (
-    trackId: string,
-    trackIdx: number,
+  // Open the shared track context menu at the cursor for any track in any view.
+  // Each view supplies its own `onPlay` closure (its source list + index), and
+  // optionally `fromPlaylist` so the menu offers "Remove from Playlist".
+  const openTrackMenu = (
+    e: React.MouseEvent,
+    track: Track,
+    onPlay: () => void,
     fromPlaylist = false
-  ): ContextMenuOption[] => {
-    const track = fromPlaylist
-      ? playlistTracks.find((t) => t.id === trackId)
-      : library.find((t) => t.id === trackId)
-    const opts: ContextMenuOption[] = [
-      {
-        label: 'Play Now',
-        icon: <Play size={14} />,
-        onClick: () => {
-          if (fromPlaylist) handlePlayPlaylistTrack(trackId)
-          else loadAndPlayIndex(trackIdx, filteredLibrary)
-        }
-      },
-      {
-        label: 'Play Next',
-        icon: <ListPlus size={14} />,
-        onClick: () => {
-          if (!track) return
-          if (currentIndex !== null) {
-            const newQueue = [...queue]
-            newQueue.splice(currentIndex + 1, 0, track)
-            setQueue(newQueue)
-          } else {
-            setQueue((prev) => [track, ...prev])
-            setCurrentIndex(0)
-          }
-          addToast('Playing next', track.title, 'info')
-        }
-      },
-      {
-        label: 'Add to Queue',
-        icon: <ListOrdered size={14} />,
-        onClick: () => {
-          if (!track) return
-          setQueue((prev) => [...prev, track])
-          addToast('Added to queue', track.title, 'info')
-        }
-      },
-      {
-        label: 'Edit Tags',
-        icon: <Edit3 size={14} />,
-        onClick: () => track && setTagEditorTrack(track)
-      },
-      {
-        label: 'Show in Explorer',
-        icon: <FolderOpen size={14} />,
-        onClick: () =>
-          track && window.api?.revealInExplorer && window.api.revealInExplorer(track.filepath)
+  ): void => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, track, onPlay, fromPlaylist })
+  }
+
+  // Handlers shared by every track context menu instance.
+  const trackMenuHandlers: TrackMenuHandlers = {
+    onPlayNext: (track) => {
+      if (currentIndex !== null) {
+        setQueue((prev) => {
+          const next = [...prev]
+          next.splice(currentIndex + 1, 0, track)
+          return next
+        })
+      } else {
+        setQueue((prev) => [track, ...prev])
+        setCurrentIndex(0)
       }
-    ]
-    if (fromPlaylist && selectedPlaylistId) {
-      opts.push({
-        label: 'Remove from Playlist',
-        icon: <X size={14} />,
-        danger: true,
-        onClick: () => {
-          if (track && selectedPlaylistId) handleRemoveFromPlaylist(selectedPlaylistId, trackId)
+      addToast('Playing next', track.title, 'info')
+    },
+    onAddToQueue: (track) => {
+      setQueue((prev) => [...prev, track])
+      addToast('Added to queue', track.title, 'info')
+    },
+    onEditTags: (track) => setTagEditorTrack(track),
+    onRevealInExplorer: (track) =>
+      window.api?.revealInExplorer && window.api.revealInExplorer(track.filepath),
+    onRemoveFromPlaylist: selectedPlaylistId
+      ? (track) => {
+          void handleRemoveFromPlaylist(selectedPlaylistId, track.id)
         }
-      })
-    } else {
-      opts.push({
-        label: 'Delete from Library',
-        icon: <Trash2 size={14} />,
-        danger: true,
-        onClick: () => {
-          if (
-            track &&
-            (!confirmBeforeDelete || window.confirm('Delete this track from your library?'))
-          ) {
-            window.api.deleteTrack(trackId).then((ok) => {
-              if (ok) {
-                setLibrary((prev) => prev.filter((t) => t.id !== trackId))
-                setQueue((prev) => prev.filter((t) => t.id !== trackId))
-                refreshPlaylistCovers()
-                addToast('Track deleted', undefined, 'info')
-              }
-            })
-          }
-        }
-      })
+      : undefined,
+    onDeleteFromLibrary: (track) => {
+      void handleDeleteTrack(track.id)
     }
-    return opts
   }
 
   // ---- Reset Settings ----
@@ -1562,6 +1761,9 @@ export default function App() {
     setSongTransitionDuration(2)
     applyEQPreset('flat')
     setBalance(0)
+    setPlayCounts({})
+    setRecentlyPlayed([])
+    setUiScale(1)
     addToast('Settings reset to defaults', undefined, 'info')
   }
 
@@ -1576,6 +1778,151 @@ export default function App() {
       ),
     [library, searchQuery]
   )
+
+  // ---- Home screen aggregates ----
+  const homeTrackById = useMemo(() => new Map(library.map((t) => [t.id, t])), [library])
+
+  const homeRecentlyPlayed = useMemo(() => {
+    const seen = new Set<string>()
+    const out: Track[] = []
+    for (const id of recentlyPlayed) {
+      if (seen.has(id)) continue
+      const t = homeTrackById.get(id)
+      if (!t) continue
+      seen.add(id)
+      out.push(t)
+    }
+    return out.slice(0, 12)
+  }, [recentlyPlayed, homeTrackById])
+
+  const homeMostPlayed = useMemo(() => {
+    const scored: { track: Track; count: number }[] = []
+    for (const t of library) {
+      const count = playCounts[t.id] || 0
+      if (count > 0) scored.push({ track: t, count })
+    }
+    scored.sort((a, b) => b.count - a.count || (b.track.added_at || 0) - (a.track.added_at || 0))
+    return scored.slice(0, 8)
+  }, [library, playCounts])
+
+  const homeRecentAdded = useMemo(
+    () => [...library].sort((a, b) => (b.added_at || 0) - (a.added_at || 0)).slice(0, 10),
+    [library]
+  )
+
+  const homeLikedTracks = useMemo(() => {
+    const out: Track[] = []
+    for (const id of likedTrackIds) {
+      const t = homeTrackById.get(id)
+      if (t) out.push(t)
+    }
+    return out
+  }, [likedTrackIds, homeTrackById])
+
+  // ---- Home album / artist aggregates (for the bento tiles + detail views) ----
+  const homeAlbums = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; artist: string; album: string; tracks: Track[]; addedAt: number }
+    >()
+    for (const t of library) {
+      const key = `${t.artist || 'Unknown Artist'}│${t.album || 'Unknown Album'}`
+      let entry = map.get(key)
+      if (!entry) {
+        entry = {
+          key,
+          artist: t.artist || 'Unknown Artist',
+          album: t.album || 'Unknown Album',
+          tracks: [],
+          addedAt: t.added_at || 0
+        }
+        map.set(key, entry)
+      }
+      entry.tracks.push(t)
+      entry.addedAt = Math.max(entry.addedAt, t.added_at || 0)
+    }
+    return Array.from(map.values()).sort((a, b) => b.addedAt - a.addedAt)
+  }, [library])
+
+  const homeArtists = useMemo(() => {
+    const map = new Map<string, { name: string; tracks: Track[]; covers: string[] }>()
+    for (const t of library) {
+      const name = t.artist || 'Unknown Artist'
+      let entry = map.get(name)
+      if (!entry) {
+        entry = { name, tracks: [], covers: [] }
+        map.set(name, entry)
+      }
+      entry.tracks.push(t)
+      if (t.cover && !entry.covers.includes(t.cover)) entry.covers.push(t.cover)
+    }
+    return Array.from(map.values())
+  }, [library])
+
+  // Artists ranked for the Home tile: highest total plays first, then name.
+  const homeArtistsRanked = useMemo(() => {
+    const scored: { name: string; plays: number; covers: string[]; track: Track }[] = []
+    for (const a of homeArtists) {
+      const plays = a.tracks.reduce((sum, t) => sum + (playCounts[t.id] || 0), 0)
+      scored.push({
+        name: a.name,
+        plays,
+        covers: a.covers,
+        track: a.tracks[0]
+      })
+    }
+    return scored.sort((a, b) => b.plays - a.plays || a.name.localeCompare(b.name))
+  }, [homeArtists, playCounts])
+
+  // Currently viewed album / artist (from homeDetail) resolved against the data.
+  const homeAlbumDetail =
+    homeDetail?.kind === 'album' ? homeAlbums.find((a) => a.key === homeDetail.key) || null : null
+  const homeArtistDetail =
+    homeDetail?.kind === 'artist'
+      ? homeArtists.find((a) => a.name === homeDetail.name) || null
+      : null
+
+  // Spotlight track for the "Continue listening" hero: the most recent play,
+  // otherwise whatever is currently loaded, otherwise the newest addition.
+  const homeHeroTrack = homeRecentlyPlayed[0] || currentTrack || homeRecentAdded[0] || null
+  const homeHeroSource = homeHeroTrack
+    ? [homeHeroTrack, ...homeRecentAdded.filter((t) => t.id !== homeHeroTrack.id)]
+    : []
+
+  // Greeting flips by time of day to keep Home feeling alive.
+  const homeGreeting =
+    new Date().getHours() < 5
+      ? 'Up late'
+      : new Date().getHours() < 12
+        ? 'Good morning'
+        : new Date().getHours() < 18
+          ? 'Good afternoon'
+          : 'Good evening'
+
+  // Quick Action handlers for Home Screen
+  const handleShuffleAll = useCallback(() => {
+    if (library.length === 0) return
+    const shuffled = [...library].sort(() => Math.random() - 0.5)
+    void loadAndPlayIndex(0, shuffled)
+  }, [library, loadAndPlayIndex])
+
+  const handlePlayLikedAll = useCallback(() => {
+    if (homeLikedTracks.length === 0) return
+    void loadAndPlayIndex(0, homeLikedTracks)
+  }, [homeLikedTracks, loadAndPlayIndex])
+
+  const handlePlayRecentAdded = useCallback(() => {
+    if (homeRecentAdded.length === 0) return
+    void loadAndPlayIndex(0, homeRecentAdded)
+  }, [homeRecentAdded, loadAndPlayIndex])
+
+  const handlePlayMostPlayed = useCallback(() => {
+    if (homeMostPlayed.length === 0) return
+    void loadAndPlayIndex(
+      0,
+      homeMostPlayed.map((m) => m.track)
+    )
+  }, [homeMostPlayed, loadAndPlayIndex])
 
   // ---- Grouped library (by Artist + Album) ----
   const orderedTracks = useMemo(() => {
@@ -1717,22 +2064,22 @@ export default function App() {
       <style>{currentAnim.globalCss}</style>
       {currentTheme.customCss && <style>{currentTheme.customCss}</style>}
 
-      {/* Custom frameless window title bar */}
-      <TitleBar onAbout={() => setIsAboutOpen(true)} />
+      {/* Custom frameless window title bar — hidden while the fullscreen now-playing
+          view is open so only the cover, track info and lyrics take the screen. */}
+      {!isFullscreenCover && <TitleBar onAbout={() => setIsAboutOpen(true)} />}
 
       {/* Full-viewport load screen shown while data hydrates */}
       {isInitializing && <LoadingScreen />}
 
-      {/* Context Menu */}
+      {/* Track Context Menu — shared for every track in every view */}
       {contextMenu && (
-        <ContextMenu
+        <TrackContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          options={buildContextMenuOptions(
-            contextMenu.trackId,
-            contextMenu.trackIdx,
-            contextMenu.fromPlaylist
-          )}
+          track={contextMenu.track}
+          fromPlaylist={contextMenu.fromPlaylist}
+          onPlay={contextMenu.onPlay}
+          handlers={trackMenuHandlers}
           onClose={() => setContextMenu(null)}
         />
       )}
@@ -1838,6 +2185,773 @@ export default function App() {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {/* HOME VIEW */}
+        {view === 'home' && (
+          <div key="home" className="view-fade home-view">
+            {library.length === 0 ? (
+              <div
+                className="pl-empty"
+                style={{
+                  minHeight: '60vh',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '40px 20px',
+                  border: '1px dashed rgba(128,128,128,0.18)',
+                  borderRadius: 20,
+                  background: 'color-mix(in srgb, var(--card-bg) 40%, transparent)'
+                }}
+              >
+                <div style={{ textAlign: 'center', maxWidth: 440, margin: '0 auto' }}>
+                  <div
+                    style={{
+                      width: 68,
+                      height: 68,
+                      borderRadius: '50%',
+                      background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                      color: 'var(--accent)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 18px',
+                      boxShadow:
+                        '0 8px 24px -4px color-mix(in srgb, var(--accent) 30%, transparent)'
+                    }}
+                  >
+                    <Music size={32} />
+                  </div>
+                  <h2
+                    style={{
+                      fontWeight: 900,
+                      fontSize: 24,
+                      marginBottom: 8,
+                      letterSpacing: -0.5,
+                      color: 'var(--text-primary)'
+                    }}
+                  >
+                    Welcome to omus
+                  </h2>
+                  <p
+                    style={{
+                      fontSize: 13.5,
+                      marginBottom: 24,
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.55
+                    }}
+                  >
+                    Your offline music sanctuary. Import your local audio tracks and folders to
+                    unlock your personalized Bento Home, lyrics sync, and visualizer.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                    <button
+                      className="btn btn-primary btn-pill btn-accent-glow"
+                      onClick={openImportTracks}
+                    >
+                      <Plus size={15} /> Add Tracks
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : homeDetail?.kind === 'album' && homeAlbumDetail ? (
+              <div className="home-detail">
+                <button
+                  className="btn-plain home-back"
+                  onClick={() => setHomeDetail(null)}
+                  style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  ← Back to Home
+                </button>
+                <div className="home-detail-hero">
+                  <div className="home-detail-art">
+                    {(() => {
+                      const cover = homeAlbumDetail.tracks.find((t) => t.cover)?.cover
+                      return cover ? <img src={cover} alt="" /> : <Music size={52} opacity={0.4} />
+                    })()}
+                  </div>
+                  <div className="home-detail-info">
+                    <div className="home-detail-type">ALBUM</div>
+                    <h1 className="home-detail-title">{homeAlbumDetail.album}</h1>
+                    <p className="home-detail-sub">
+                      {homeAlbumDetail.artist} · {homeAlbumDetail.tracks.length}{' '}
+                      {homeAlbumDetail.tracks.length === 1 ? 'track' : 'tracks'} ·{' '}
+                      {formatTime(
+                        homeAlbumDetail.tracks.reduce((s, t) => s + (t.duration || 0), 0)
+                      )}
+                    </p>
+                    <div className="home-detail-actions">
+                      <button
+                        className="sp-play-btn"
+                        title="Play album"
+                        onClick={() => loadAndPlayIndex(0, homeAlbumDetail.tracks)}
+                      >
+                        <Play size={20} fill="currentColor" style={{ marginLeft: 2 }} />
+                      </button>
+                      <span className="home-detail-hint">Play album</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="home-detail-list">
+                  {homeAlbumDetail.tracks.map((t, i) => (
+                    <div
+                      key={t.id}
+                      className="tile-row"
+                      onClick={() => loadAndPlayIndex(i, homeAlbumDetail.tracks)}
+                      onContextMenu={(e) =>
+                        openTrackMenu(e, t, () => loadAndPlayIndex(i, homeAlbumDetail.tracks))
+                      }
+                      title={`${t.title} — ${t.artist || 'Unknown Artist'}`}
+                    >
+                      <span className="tile-row-idx">{i + 1}</span>
+                      <span className="tile-row-art">
+                        {t.cover ? <img src={t.cover} alt="" /> : <Music size={16} opacity={0.4} />}
+                      </span>
+                      <span className="tile-row-main">
+                        <span className="tile-row-title">{t.title}</span>
+                        <span className="tile-row-sub">{t.artist || 'Unknown Artist'}</span>
+                      </span>
+                      <span className="tile-row-time">{formatTime(t.duration)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : homeDetail?.kind === 'artist' && homeArtistDetail ? (
+              <div className="home-detail">
+                <button
+                  className="btn-plain home-back"
+                  onClick={() => setHomeDetail(null)}
+                  style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  ← Back to Home
+                </button>
+                <div className="home-detail-hero">
+                  <div className="home-detail-art">
+                    {homeArtistDetail.covers.length > 0 ? (
+                      <img src={homeArtistDetail.covers[0]} alt="" />
+                    ) : (
+                      <Music size={52} opacity={0.4} />
+                    )}
+                  </div>
+                  <div className="home-detail-info">
+                    <div className="home-detail-type">ARTIST</div>
+                    <h1 className="home-detail-title">{homeArtistDetail.name}</h1>
+                    <p className="home-detail-sub">
+                      {homeArtistDetail.tracks.length}{' '}
+                      {homeArtistDetail.tracks.length === 1 ? 'track' : 'tracks'} ·{' '}
+                      {new Set(homeArtistDetail.tracks.map((t) => t.album || 'Unknown Album')).size}{' '}
+                      {new Set(homeArtistDetail.tracks.map((t) => t.album || 'Unknown Album'))
+                        .size === 1
+                        ? 'album'
+                        : 'albums'}{' '}
+                      ·{' '}
+                      {formatTime(
+                        homeArtistDetail.tracks.reduce((s, t) => s + (t.duration || 0), 0)
+                      )}
+                    </p>
+                    <div className="home-detail-actions">
+                      <button
+                        className="sp-play-btn"
+                        title="Play all"
+                        onClick={() => loadAndPlayIndex(0, homeArtistDetail.tracks)}
+                      >
+                        <Play size={20} fill="currentColor" style={{ marginLeft: 2 }} />
+                      </button>
+                      <span className="home-detail-hint">Play all</span>
+                    </div>
+                  </div>
+                </div>
+                {(() => {
+                  const byAlbum = new Map<string, { album: string; tracks: Track[] }>()
+                  for (const t of homeArtistDetail.tracks) {
+                    const key = t.album || 'Unknown Album'
+                    if (!byAlbum.has(key)) byAlbum.set(key, { album: key, tracks: [] })
+                    byAlbum.get(key)!.tracks.push(t)
+                  }
+                  return Array.from(byAlbum.values()).map((alb) => (
+                    <section key={alb.album} className="home-detail-album">
+                      <div className="tile-head home-detail-album-head">
+                        <span className="home-detail-album-name">{alb.album}</span>
+                        <span className="home-detail-album-count">
+                          {alb.tracks.length} {alb.tracks.length === 1 ? 'track' : 'tracks'}
+                        </span>
+                      </div>
+                      <div className="home-detail-list">
+                        {alb.tracks.map((t, i) => (
+                          <div
+                            key={t.id}
+                            className="tile-row"
+                            onClick={() => loadAndPlayIndex(i, alb.tracks)}
+                            onContextMenu={(e) =>
+                              openTrackMenu(e, t, () => loadAndPlayIndex(i, alb.tracks))
+                            }
+                            title={`${t.title} — ${t.artist || 'Unknown Artist'}`}
+                          >
+                            <span className="tile-row-idx">{i + 1}</span>
+                            <span className="tile-row-art">
+                              {t.cover ? (
+                                <img src={t.cover} alt="" />
+                              ) : (
+                                <Music size={16} opacity={0.4} />
+                              )}
+                            </span>
+                            <span className="tile-row-main">
+                              <span className="tile-row-title">{t.title}</span>
+                              <span className="tile-row-sub">{t.artist || 'Unknown Artist'}</span>
+                            </span>
+                            <span className="tile-row-time">{formatTime(t.duration)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                })()}
+              </div>
+            ) : (
+              <>
+                <div className="home-header">
+                  <div className="home-header-left">
+                    <p className="eyebrow" style={{ marginBottom: 4 }}>
+                      HOME
+                    </p>
+                    <h1 className="home-greeting">{homeGreeting}</h1>
+                    <p className="home-subtitle">
+                      <span>{library.length} tracks</span>
+                      <span>·</span>
+                      <span>{new Set(library.map((t) => t.artist)).size} artists</span>
+                      <span>·</span>
+                      <span>
+                        {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="home-header-actions">
+                    <button
+                      className="btn btn-ghost btn-sm btn-pill"
+                      onClick={handleShuffleAll}
+                      title="Shuffle entire music library"
+                    >
+                      <Shuffle size={13} /> Shuffle All
+                    </button>
+                    {homeLikedTracks.length > 0 && (
+                      <button
+                        className="btn btn-ghost btn-sm btn-pill"
+                        onClick={handlePlayLikedAll}
+                        title="Play all liked tracks"
+                      >
+                        <Heart size={13} fill="var(--accent)" /> Liked Songs
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-primary btn-sm btn-pill btn-accent-glow"
+                      onClick={openImportTracks}
+                      title="Add tracks or folders"
+                    >
+                      <Plus size={13} /> Add Tracks
+                    </button>
+                  </div>
+                </div>
+
+                <div className="home-grid">
+                  {/* HERO SPOTLIGHT */}
+                  {homeHeroTrack && (
+                    <div
+                      className="home-tile tile-hero"
+                      onContextMenu={(e) =>
+                        openTrackMenu(e, homeHeroTrack, () => {
+                          if (currentTrack?.id === homeHeroTrack.id) togglePlay()
+                          else loadAndPlayIndex(0, homeHeroSource)
+                        })
+                      }
+                    >
+                      <div className="tile-hero-art-wrap">
+                        <div className="tile-hero-ambient" />
+                        <div className="tile-hero-art">
+                          {homeHeroTrack.cover ? (
+                            <img src={homeHeroTrack.cover} alt="" />
+                          ) : (
+                            <Music size={52} opacity={0.35} />
+                          )}
+                        </div>
+                      </div>
+                      <div className="tile-hero-info">
+                        <div className="tile-hero-tag">
+                          {currentTrack?.id === homeHeroTrack.id && isPlaying && (
+                            <span className="hero-live-dot" />
+                          )}
+                          {currentTrack?.id === homeHeroTrack.id
+                            ? isPlaying
+                              ? 'NOW PLAYING'
+                              : 'PAUSED'
+                            : 'CONTINUE LISTENING'}
+                        </div>
+                        <h2>{homeHeroTrack.title}</h2>
+                        <p>
+                          {homeHeroTrack.artist || 'Unknown Artist'}{' '}
+                          {homeHeroTrack.album ? `· ${homeHeroTrack.album}` : ''}
+                        </p>
+                        <div className="tile-hero-actions">
+                          <button
+                            className="sp-play-btn"
+                            title={
+                              currentTrack?.id === homeHeroTrack.id && isPlaying ? 'Pause' : 'Play'
+                            }
+                            onClick={() => {
+                              if (currentTrack?.id === homeHeroTrack.id) togglePlay()
+                              else loadAndPlayIndex(0, homeHeroSource)
+                            }}
+                          >
+                            {currentTrack?.id === homeHeroTrack.id && isPlaying ? (
+                              <Pause size={20} fill="currentColor" />
+                            ) : (
+                              <Play size={20} fill="currentColor" style={{ marginLeft: 2 }} />
+                            )}
+                          </button>
+                          <button
+                            className={`sp-heart-btn ${likedTrackIds.includes(homeHeroTrack.id) ? 'liked' : ''}`}
+                            onClick={() => toggleLikeTrack(homeHeroTrack.id)}
+                            title="Like Track"
+                          >
+                            <Heart
+                              size={19}
+                              fill={
+                                likedTrackIds.includes(homeHeroTrack.id) ? 'var(--accent)' : 'none'
+                              }
+                            />
+                          </button>
+                          <button
+                            className="sp-btn-icon"
+                            onClick={advanceToNext}
+                            title="Next track"
+                          >
+                            <SkipForward size={18} />
+                          </button>
+                          <button
+                            className="sp-btn-icon"
+                            onClick={toggleFullscreen}
+                            title="Fullscreen Now Playing (F)"
+                          >
+                            <Maximize2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STATS / LIBRARY PULSE TILE */}
+                  <section className="home-tile tile-stats">
+                    <div className="tile-stats-head">
+                      <span>Library Pulse</span>
+                      <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 800 }}>
+                        OVERVIEW
+                      </span>
+                    </div>
+                    <div className="tile-stats-grid">
+                      <div
+                        className="tile-stat"
+                        onClick={() => setView('library')}
+                        title="View all tracks"
+                      >
+                        <b>{library.length}</b>
+                        <span>Tracks</span>
+                      </div>
+                      <div
+                        className="tile-stat"
+                        onClick={() => {
+                          setLibraryLayout('group')
+                          setView('library')
+                        }}
+                        title="View artists & albums"
+                      >
+                        <b>{new Set(library.map((t) => t.artist)).size}</b>
+                        <span>Artists</span>
+                      </div>
+                      <div
+                        className="tile-stat"
+                        onClick={() => setView('playlists')}
+                        title="View playlists"
+                      >
+                        <b>{playlists.length}</b>
+                        <span>Playlists</span>
+                      </div>
+                      <div
+                        className="tile-stat"
+                        onClick={() => {
+                          if (homeLikedTracks.length > 0) handlePlayLikedAll()
+                        }}
+                        title={homeLikedTracks.length > 0 ? 'Play liked tracks' : 'No liked tracks'}
+                      >
+                        <b>{likedTrackIds.length}</b>
+                        <span>Liked</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* QUICK MIX / LIKED SPOTLIGHT TILE */}
+                  <section className="home-tile tile-quick-mix">
+                    <div
+                      className="quick-mix-hero"
+                      onClick={handlePlayLikedAll}
+                      title="Play all liked songs"
+                    >
+                      <div className="quick-mix-icon">
+                        <Heart size={22} fill="currentColor" />
+                      </div>
+                      <div className="quick-mix-info">
+                        <div className="quick-mix-title">Liked Songs</div>
+                        <div className="quick-mix-sub">
+                          {homeLikedTracks.length}{' '}
+                          {homeLikedTracks.length === 1 ? 'track' : 'tracks'} ·{' '}
+                          {formatTime(homeLikedTracks.reduce((s, t) => s + (t.duration || 0), 0))}
+                        </div>
+                      </div>
+                      <button
+                        className="sp-play-btn"
+                        style={{ width: 34, height: 34 }}
+                        title="Play Liked Songs"
+                      >
+                        <Play size={15} fill="currentColor" style={{ marginLeft: 1 }} />
+                      </button>
+                    </div>
+
+                    <div className="quick-actions-row">
+                      <button
+                        className="quick-chip"
+                        onClick={handleShuffleAll}
+                        title="Shuffle all library tracks"
+                      >
+                        <Shuffle size={12} /> Shuffle
+                      </button>
+                      <button
+                        className="quick-chip"
+                        onClick={handlePlayRecentAdded}
+                        title="Play recent additions"
+                      >
+                        <Sparkles size={12} /> Fresh
+                      </button>
+                      {homeMostPlayed.length > 0 && (
+                        <button
+                          className="quick-chip"
+                          onClick={handlePlayMostPlayed}
+                          title="Play top tracks"
+                        >
+                          <Flame size={12} /> Top Hits
+                        </button>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* RECENTLY PLAYED */}
+                  {homeRecentlyPlayed.length > 0 && (
+                    <section className="home-tile tile-recent">
+                      <div className="tile-head">
+                        <Clock3 size={15} />
+                        <h3>Recently played</h3>
+                        <button
+                          className="btn btn-ghost home-see-all btn-xs"
+                          onClick={() => setView('queue')}
+                          title="Open queue / history"
+                        >
+                          Queue
+                        </button>
+                      </div>
+                      <div className="tile-list">
+                        {homeRecentlyPlayed.slice(0, 4).map((t, i) => {
+                          const isCurPlaying = currentTrack?.id === t.id && isPlaying
+                          return (
+                            <div
+                              key={t.id}
+                              className="tile-row"
+                              data-active={currentTrack?.id === t.id}
+                              onClick={() => loadAndPlayIndex(i, homeRecentlyPlayed)}
+                              onContextMenu={(e) =>
+                                openTrackMenu(e, t, () => loadAndPlayIndex(i, homeRecentlyPlayed))
+                              }
+                              title={`${t.title} — ${t.artist || 'Unknown Artist'}`}
+                            >
+                              <span className="tile-row-art">
+                                {t.cover ? (
+                                  <img src={t.cover} alt="" />
+                                ) : (
+                                  <Music size={16} opacity={0.4} />
+                                )}
+                                {isCurPlaying && (
+                                  <div className="tile-row-playing-icon">
+                                    <div className="eq">
+                                      <span />
+                                      <span />
+                                      <span />
+                                    </div>
+                                  </div>
+                                )}
+                              </span>
+                              <span className="tile-row-main">
+                                <span className="tile-row-title">{t.title}</span>
+                                <span className="tile-row-sub">{t.artist || 'Unknown Artist'}</span>
+                              </span>
+                              <span className="tile-row-time">{formatTime(t.duration)}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* RECENTLY ADDED */}
+                  <section className="home-tile tile-new">
+                    <div className="tile-head">
+                      <Sparkles size={15} />
+                      <h3>Recently added</h3>
+                      <button
+                        className="btn btn-ghost home-see-all btn-xs"
+                        onClick={() => setView('library')}
+                        title="View all library tracks"
+                      >
+                        See all
+                      </button>
+                    </div>
+                    <div className="tile-list">
+                      {homeRecentAdded.slice(0, 4).map((t, idx) => {
+                        const isCurPlaying = currentTrack?.id === t.id && isPlaying
+                        return (
+                          <div
+                            key={t.id}
+                            className="tile-row"
+                            data-active={currentTrack?.id === t.id}
+                            onClick={() => loadAndPlayIndex(idx, homeRecentAdded)}
+                            onContextMenu={(e) =>
+                              openTrackMenu(e, t, () => loadAndPlayIndex(idx, homeRecentAdded))
+                            }
+                            title={`${t.title} — ${t.artist || 'Unknown Artist'}`}
+                          >
+                            <span className="tile-row-art">
+                              {t.cover ? (
+                                <img src={t.cover} alt="" />
+                              ) : (
+                                <Music size={16} opacity={0.4} />
+                              )}
+                              {isCurPlaying && (
+                                <div className="tile-row-playing-icon">
+                                  <div className="eq">
+                                    <span />
+                                    <span />
+                                    <span />
+                                  </div>
+                                </div>
+                              )}
+                            </span>
+                            <span className="tile-row-main">
+                              <span className="tile-row-title">{t.title}</span>
+                              <span className="tile-row-sub">{t.artist || 'Unknown Artist'}</span>
+                            </span>
+                            <span className="tile-row-time">{formatTime(t.duration)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+
+                  {/* HEAVY ROTATION / MOST PLAYED */}
+                  {homeMostPlayed.length > 0 && (
+                    <section className="home-tile tile-most">
+                      <div className="tile-head">
+                        <TrendingUp size={15} />
+                        <h3>Heavy rotation</h3>
+                        <button
+                          className="btn btn-ghost home-see-all btn-xs"
+                          onClick={handlePlayMostPlayed}
+                          title="Play all top tracks"
+                        >
+                          Play all
+                        </button>
+                      </div>
+                      <div className="tile-most-grid">
+                        {homeMostPlayed.slice(0, 6).map(({ track, count }, i) => (
+                          <div
+                            key={track.id}
+                            className="tile-most-cell"
+                            onClick={() =>
+                              loadAndPlayIndex(
+                                i,
+                                homeMostPlayed.map((m) => m.track)
+                              )
+                            }
+                            onContextMenu={(e) =>
+                              openTrackMenu(e, track, () =>
+                                loadAndPlayIndex(
+                                  i,
+                                  homeMostPlayed.map((m) => m.track)
+                                )
+                              )
+                            }
+                            title={`${track.title} — ${count} ${count === 1 ? 'play' : 'plays'}`}
+                          >
+                            <div className="tile-most-art">
+                              {track.cover ? (
+                                <img src={track.cover} alt="" />
+                              ) : (
+                                <Music size={24} opacity={0.3} />
+                              )}
+                              <span className={`tile-most-rank rank-${i + 1}`}>{i + 1}</span>
+                              <span className="tile-most-count">
+                                <Flame size={10} />
+                                {count}
+                              </span>
+                            </div>
+                            <span className="tile-most-title">{track.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* FEATURED ALBUMS */}
+                  <section className="home-tile tile-albums">
+                    <div className="tile-head">
+                      <LayoutGrid size={15} />
+                      <h3>Albums</h3>
+                      <button
+                        className="btn btn-ghost home-see-all btn-xs"
+                        onClick={() => {
+                          setLibraryLayout('group')
+                          setView('library')
+                        }}
+                        title="View grouped by album"
+                      >
+                        See all
+                      </button>
+                    </div>
+                    <div className="tile-albums-grid">
+                      {homeAlbums.slice(0, 3).map((al, i) => (
+                        <div
+                          key={al.key}
+                          className="tile-album"
+                          onClick={() => setHomeDetail({ kind: 'album', key: al.key })}
+                          title={`${al.album} — ${al.artist}`}
+                        >
+                          <span className="tile-album-art">
+                            {al.tracks.find((t) => t.cover)?.cover ? (
+                              <img src={al.tracks.find((t) => t.cover)!.cover} alt="" />
+                            ) : (
+                              <Music size={22} opacity={0.4} />
+                            )}
+                            <span className="tile-most-rank">{i + 1}</span>
+                          </span>
+                          <span className="tile-album-name">{al.album}</span>
+                          <span className="tile-album-sub">
+                            {al.artist} · {al.tracks.length}{' '}
+                            {al.tracks.length === 1 ? 'track' : 'tracks'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* TOP ARTISTS */}
+                  <section className="home-tile tile-artists">
+                    <div className="tile-head">
+                      <Flame size={15} />
+                      <h3>Top Artists</h3>
+                      <button
+                        className="btn btn-ghost home-see-all btn-xs"
+                        onClick={() => {
+                          setLibraryLayout('group')
+                          setView('library')
+                        }}
+                        title="View all artists"
+                      >
+                        See all
+                      </button>
+                    </div>
+                    <div className="tile-artists-row">
+                      {homeArtistsRanked.slice(0, 3).map((a, i) => (
+                        <div
+                          key={a.name}
+                          className="tile-artist"
+                          onClick={() => setHomeDetail({ kind: 'artist', name: a.name })}
+                          title={`View ${a.name}`}
+                        >
+                          <span className="tile-artist-avatar">
+                            {a.covers[0] ? (
+                              <img src={a.covers[0]} alt="" />
+                            ) : (
+                              <Music size={18} opacity={0.4} />
+                            )}
+                            <span className="tile-artist-rank">{i + 1}</span>
+                          </span>
+                          <span className="tile-artist-name">{a.name}</span>
+                          <span className="tile-artist-count">
+                            {a.plays > 0
+                              ? `${a.plays} ${a.plays === 1 ? 'play' : 'plays'}`
+                              : `${homeArtists.find((x) => x.name === a.name)?.tracks.length || 0} tracks`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* PLAYLISTS */}
+                  {playlists.length > 0 && (
+                    <section className="home-tile tile-pl">
+                      <div className="tile-head">
+                        <ListMusic size={15} />
+                        <h3>Playlists</h3>
+                        <button
+                          className="btn btn-ghost home-see-all btn-xs"
+                          onClick={() => setView('playlists')}
+                          title="View all playlists"
+                        >
+                          See all
+                        </button>
+                      </div>
+                      <div className="tile-list">
+                        {playlists.slice(0, 3).map((pl) => {
+                          const grad = playlistGradient(pl.id)
+                          const plCovers = playlistCovers[pl.id] || []
+                          return (
+                            <div
+                              key={pl.id}
+                              className="tile-row"
+                              onClick={() => {
+                                handleSelectPlaylist(pl.id)
+                                setView('playlists')
+                              }}
+                              title={`Open ${pl.name}`}
+                            >
+                              <span
+                                className="tile-pl-mosaic"
+                                style={
+                                  plCovers.length
+                                    ? undefined
+                                    : {
+                                        background: `linear-gradient(135deg, ${grad[0]}, ${grad[1]})`
+                                      }
+                                }
+                              >
+                                {plCovers.length ? (
+                                  [0, 1, 2, 3].map((i) => (
+                                    <img key={i} src={plCovers[i % plCovers.length]} alt="" />
+                                  ))
+                                ) : (
+                                  <Music size={16} opacity={0.4} />
+                                )}
+                              </span>
+                              <span className="tile-row-main">
+                                <span className="tile-row-title">{pl.name}</span>
+                                <span className="tile-row-sub">
+                                  {plCovers.length} {plCovers.length === 1 ? 'track' : 'tracks'}
+                                </span>
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* LIBRARY VIEW */}
         {view === 'library' && (
           <div key="library" className="view-fade">
@@ -1940,15 +3054,9 @@ export default function App() {
                         className="track-row"
                         data-active={isActive}
                         onClick={() => loadAndPlayIndex(idx, filteredLibrary)}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          setContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            trackId: track.id,
-                            trackIdx: idx
-                          })
-                        }}
+                        onContextMenu={(e) =>
+                          openTrackMenu(e, track, () => loadAndPlayIndex(idx, filteredLibrary))
+                        }
                       >
                         <td className="idx">
                           {isActive && isPlaying ? (
@@ -2113,15 +3221,9 @@ export default function App() {
                             handleTrackDrop(track.id)
                           }}
                           onClick={() => loadAndPlayIndex(ordIdx, orderedTracks)}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            setContextMenu({
-                              x: e.clientX,
-                              y: e.clientY,
-                              trackId: track.id,
-                              trackIdx: ordIdx
-                            })
-                          }}
+                          onContextMenu={(e) =>
+                            openTrackMenu(e, track, () => loadAndPlayIndex(ordIdx, orderedTracks))
+                          }
                           data-active={isActive}
                           style={{
                             display: 'grid',
@@ -2181,15 +3283,9 @@ export default function App() {
                     key={track.id}
                     className="track-card"
                     onClick={() => loadAndPlayIndex(idx, filteredLibrary)}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      setContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        trackId: track.id,
-                        trackIdx: idx
-                      })
-                    }}
+                    onContextMenu={(e) =>
+                      openTrackMenu(e, track, () => loadAndPlayIndex(idx, filteredLibrary))
+                    }
                   >
                     <button
                       className="card-x"
@@ -2527,16 +3623,9 @@ export default function App() {
                         className="pl-track-row"
                         data-active={currentTrack?.id === track.id}
                         onClick={() => handlePlayPlaylistTrack(track.id)}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          setContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            trackId: track.id,
-                            trackIdx: idx,
-                            fromPlaylist: true
-                          })
-                        }}
+                        onContextMenu={(e) =>
+                          openTrackMenu(e, track, () => handlePlayPlaylistTrack(track.id), true)
+                        }
                       >
                         <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                           {idx + 1}
@@ -2608,6 +3697,7 @@ export default function App() {
                       className="queue-card"
                       data-active={isCurrent}
                       onClick={() => loadAndPlayIndex(idx)}
+                      onContextMenu={(e) => openTrackMenu(e, track, () => loadAndPlayIndex(idx))}
                     >
                       <div
                         style={{
@@ -2692,7 +3782,12 @@ export default function App() {
         {view === 'lyrics' && (
           <div key="lyrics" className="lyrics-container-view view-fade">
             <div className="lyrics-header-clean">
-              <div>
+              <div
+                style={{ cursor: currentTrack ? 'context-menu' : 'default' }}
+                onContextMenu={(e) =>
+                  currentTrack && openTrackMenu(e, currentTrack, () => togglePlay())
+                }
+              >
                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900 }}>
                   {currentTrack ? currentTrack.title : 'Synchronized Lyrics'}
                 </h2>
@@ -3478,7 +4573,7 @@ export default function App() {
             </div>
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 4 }}>
-                Custom CSS Overrides
+                UI Scale
               </label>
               <span
                 style={{
@@ -3488,20 +4583,69 @@ export default function App() {
                   marginBottom: 12
                 }}
               >
-                Inject custom styles to alter UI components live.
+                Resize the whole interface. You can also hold <b>Ctrl</b> and use the mouse wheel
+                anywhere for quick zoom.
               </span>
-              <textarea
-                className="field"
-                style={{ height: 160, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
-                value={customCssInput}
-                onChange={(e) => {
-                  setCustomCssInput(e.target.value)
-                  setCurrentTheme((prev) => ({ ...prev, customCss: e.target.value }))
-                }}
-                placeholder="/* Add custom styles here */&#10;.spotify-player { border-top: 1px solid var(--accent); }"
-              />
+              <div className="settings-row" style={{ paddingTop: 0 }}>
+                <div className="settings-row-text">
+                  <div className="settings-row-title">Interface scale</div>
+                  <div className="settings-row-desc">70% – 160%</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    className="btn-plain"
+                    title="Zoom out"
+                    style={{ width: 30, height: 30, borderRadius: 15, fontSize: 18, lineHeight: 1 }}
+                    onClick={() => changeUiScale(-0.05)}
+                  >
+                    −
+                  </button>
+                  <span
+                    style={{
+                      minWidth: 48,
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      fontSize: 13
+                    }}
+                  >
+                    {Math.round(uiScale * 100)}%
+                  </span>
+                  <button
+                    className="btn-plain"
+                    title="Zoom in"
+                    style={{ width: 30, height: 30, borderRadius: 15, fontSize: 18, lineHeight: 1 }}
+                    onClick={() => changeUiScale(0.05)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <input
+                  type="range"
+                  min="0.7"
+                  max="1.6"
+                  step="0.01"
+                  className="sp-vol-slider"
+                  style={{ width: 160 }}
+                  value={uiScale}
+                  onChange={(e) => setUiScale(clampUiScale(Number(e.target.value)))}
+                />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[0.8, 1, 1.25, 1.5].map((preset) => (
+                    <button
+                      key={preset}
+                      className="opt-card"
+                      data-active={Math.abs(uiScale - preset) < 0.011}
+                      onClick={() => setUiScale(preset)}
+                      style={{ fontSize: 11, padding: '6px 10px' }}
+                    >
+                      {Math.round(preset * 100)}%
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-
             <p className="eyebrow">Playback</p>
             <div className="settings-section">
               <div className="settings-row">
@@ -3694,13 +4838,14 @@ export default function App() {
                   ['M', 'Toggle Mute'],
                   ['F', 'Fullscreen Now Playing'],
                   ['E', 'Equalizer'],
-                  ['Esc', 'Close Overlays']
+                  ['Esc', 'Close Overlays'],
+                  ['Ctrl + Scroll', 'Zoom UI']
                 ].map(([key, label]) => (
                   <div key={key}>
                     <kbd
                       style={{
                         background: 'var(--card-bg)',
-                        padding: '2px 6px',
+                        padding: '2px 7px',
                         borderRadius: 4,
                         border: '1px solid rgba(128,128,128,0.3)',
                         fontFamily: 'ui-monospace, monospace'
@@ -3712,6 +4857,33 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="settings-section">
+              <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 4 }}>
+                Custom CSS Overrides
+              </label>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--text-secondary)',
+                  display: 'block',
+                  marginBottom: 12
+                }}
+              >
+                Inject custom styles to alter UI components live. Only if you know what you are
+                doing.
+              </span>
+              <textarea
+                className="field"
+                style={{ height: 160, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
+                value={customCssInput}
+                onChange={(e) => {
+                  setCustomCssInput(e.target.value)
+                  setCurrentTheme((prev) => ({ ...prev, customCss: e.target.value }))
+                }}
+                placeholder="/* Add custom styles here */&#10;.cssname { border-top: 1px solid var(--accent); }"
+              />
             </div>
 
             <div className="settings-section" style={{ border: 'none' }}>
@@ -3730,7 +4902,10 @@ export default function App() {
       {/* BOTTOM PLAYER BAR */}
       <footer className="spotify-player">
         {/* Left: Track info */}
-        <div className="sp-left">
+        <div
+          className="sp-left"
+          onContextMenu={(e) => currentTrack && openTrackMenu(e, currentTrack, () => togglePlay())}
+        >
           {currentTrack ? (
             <>
               <div
@@ -3758,8 +4933,18 @@ export default function App() {
                 </div>
               </div>
               <div className="sp-info">
-                <div className="sp-title" title={currentTrack.title}>
-                  {currentTrack.title}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  {isVideoTrack && (
+                    <span
+                      className="sp-video-badge"
+                      title="Music video — open fullscreen (F) to watch"
+                    >
+                      <Video size={12} />
+                    </span>
+                  )}
+                  <div className="sp-title" title={currentTrack.title}>
+                    {currentTrack.title}
+                  </div>
                 </div>
                 <div
                   className="sp-artist"
@@ -3960,7 +5145,7 @@ export default function App() {
           </div>
           <button
             className="sp-btn-icon"
-            onClick={() => setIsFullscreenCover((v) => !v)}
+            onClick={toggleFullscreen}
             title="Fullscreen Now Playing (F)"
           >
             <Maximize2 size={17} />
@@ -3970,8 +5155,14 @@ export default function App() {
 
       {/* FULLSCREEN NOW PLAYING */}
       {isFullscreenCover && currentTrack && (
-        <div className="fullscreen-visualizer">
+        <div
+          className={`fullscreen-visualizer${fsUiVisible ? ' fs-ui-visible' : ''}`}
+          onMouseMove={wakeFsControls}
+        >
           <div
+            className="fs-chrome fs-chrome-top"
+            onMouseEnter={holdFsControls}
+            onMouseLeave={releaseFsControls}
             style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -3980,43 +5171,48 @@ export default function App() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}></div>
-            <button
-              className="icon-btn"
-              onClick={() => setIsFullscreenCover(false)}
-              title="Close (F)"
-            >
+            <button className="icon-btn" onClick={closeFullscreen} title="Close (F)">
               <Minimize2 size={19} />
             </button>
           </div>
 
           <div
-            className={`fullscreen-body${parsedLyrics.length === 0 ? ' fullscreen-body-nolyrics' : ''}`}
+            className={
+              parsedLyrics.length > 0
+                ? 'fullscreen-body'
+                : 'fullscreen-body fullscreen-body-nolyrics'
+            }
           >
             <div className="fullscreen-cover-side">
-              <div
-                key={currentTrack.id}
-                className="fullscreen-cover-wrap now-playing-enter"
-                style={
-                  parsedLyrics.length === 0
-                    ? { maxWidth: 'min(72vh, 68vw)', margin: '0 auto 28px' }
-                    : undefined
-                }
-              >
-                {currentTrack.cover ? (
-                  <img src={currentTrack.cover} alt="" />
-                ) : (
-                  <div
-                    style={{
-                      display: 'flex',
-                      height: '100%',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <Music size={100} opacity={0.3} />
-                  </div>
-                )}
-              </div>
+              {isVideoTrack ? (
+                <div key={currentTrack.id} className="fullscreen-video-wrap now-playing-enter">
+                  <video
+                    ref={videoRef}
+                    src={videoSrc || undefined}
+                    muted
+                    playsInline
+                    preload="auto"
+                    onClick={togglePlay}
+                  />
+                </div>
+              ) : (
+                <div key={currentTrack.id} className="fullscreen-cover-wrap now-playing-enter">
+                  {currentTrack.cover ? (
+                    <img src={currentTrack.cover} alt="" />
+                  ) : (
+                    <div
+                      style={{
+                        display: 'flex',
+                        height: '100%',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Music size={100} opacity={0.3} />
+                    </div>
+                  )}
+                </div>
+              )}
               <h2
                 style={{
                   fontSize: 28,
@@ -4035,7 +5231,10 @@ export default function App() {
               </p>
               {/* Fullscreen visualizer */}
               {visualizerMode !== 'off' && (
-                <div style={{ marginTop: 16, width: '100%', maxWidth: 420 }}>
+                <div
+                  className="fs-chrome fs-chrome-fade"
+                  style={{ marginTop: 16, width: '100%', maxWidth: 420 }}
+                >
                   <AudioVisualizer
                     analyserNode={analyserNode}
                     isPlaying={isPlaying}
@@ -4049,7 +5248,8 @@ export default function App() {
               )}
             </div>
 
-            {/* Synced Lyrics side */}
+            {/* Synced Lyrics side — only rendered when the track has lyrics.
+                Without lyrics, the album cover + info center alone on screen. */}
             {parsedLyrics.length > 0 && (
               <div
                 ref={fullscreenLyricsRef}
@@ -4086,8 +5286,13 @@ export default function App() {
             )}
           </div>
 
-          {/* Fullscreen Controls Bar */}
-          <div className="fullscreen-controls-bar">
+          {/* Fullscreen Controls Bar — part of the auto-hiding chrome: it slides
+              in while the cursor is moving and fades away a few seconds after rest. */}
+          <div
+            className="fullscreen-controls-bar fs-chrome fs-chrome-bottom"
+            onMouseEnter={holdFsControls}
+            onMouseLeave={releaseFsControls}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <button
                 className={`sp-heart-btn ${isCurrentLiked ? 'liked' : ''}`}

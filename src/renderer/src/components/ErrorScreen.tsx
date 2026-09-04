@@ -35,7 +35,6 @@ export function ErrorScreen({ error, errorInfo, onReset }: ErrorScreenProps): Re
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Clipboard may be unavailable (permissions); fall back to selection.
     }
   }
 
@@ -46,7 +45,7 @@ export function ErrorScreen({ error, errorInfo, onReset }: ErrorScreenProps): Re
           position: fixed; inset: 0; z-index: 100000;
           display: flex; align-items: center; justify-content: center; padding: 24px;
           background: #080808; color: #f4f4f5;
-          font-family: 'Segoe UI', 'Plus Jakarta Sans', sans-serif; user-select: none; overflow: auto;
+          font-family: 'Plus Jakarta Sans', sans-serif; user-select: none; overflow: auto;
         }
         .err-card {
           width: 100%; max-width: 560px; border-radius: 18px; padding: 28px;
@@ -89,16 +88,15 @@ export function ErrorScreen({ error, errorInfo, onReset }: ErrorScreenProps): Re
 
       <div className="err-card">
         <div className="err-icon">!</div>
-        <h1>Something went wrong</h1>
+        <h1>Oops! Something went wrong</h1>
         <p>
-          Omus hit an unexpected error. Your music library is safe on disk — reload the app to
-          continue, or copy the debug details below to include in a bug report or pull request.
+          omus hit an unexpected error, but don't worry - try reloading the app, or copy the debug details below to include in a bug report or pull request on github to help us fix the issue.
         </p>
 
         <div className="err-message">{error?.message ?? 'Unknown error'}</div>
 
         <details className="err-details">
-          <summary>View debug details</summary>
+          <summary>View advanced debug details</summary>
           <pre>{details}</pre>
         </details>
 
