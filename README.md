@@ -1,214 +1,43 @@
-# omus
+<img src="https://github.com/bubu07codes/omus/blob/master/src/renderer/public/logo.svg" />
 
-A fast, offline desktop music player for your local music library.
+Desktop music player for local files, with a ton of features.
 
-Built with Electron, React, Vite, and TypeScript.
+Built with Electron, React, Vite, TypeScript, and SQLite. No tracking, no accounts, no cloud setup.
 
-No accounts. No subscriptions. No cloud uploads. Just your music, and ton of fun and useful features.
-
----
-
-## Features
-
-### Music
-
-- Play local MP3, FLAC, WAV, M4A, OGG, AAC, and more
-- Instant playback and seeking
-- Shuffle, repeat, queue, and playback speed controls
-- Crossfade between songs
-- Sleep timer with optional fade-out
-- Media key and OS media control support
-
-### Audio
-
-- 10-band graphic equalizer
-- Built-in EQ presets
-- Live audio visualizers
-- Waveform, frequency bars, radial modes, and more
-- Smooth volume controls and mute
-- Music video support (mp4, webm, mkv, mov,and more — watch the picture in fullscreen while EQ/visualizer keep running)
-
-### Lyrics
-
-- Synchronized LRC lyrics
-- Automatic lyric lookup with LRCLIB
-- Click lyrics to seek through a song
-- Manual lyric search and editing
-- Adjustable lyric timing offset
-
-### Library
-
-- Import individual files or entire folders
-- Drag and drop music directly into omus
-- List, grid, and album views
-- Search by title, artist, or album
-- Custom track ordering
-
-### Playlists
-
-- Create and manage playlists
-- Reorder tracks with drag and drop
-- Import and export M3U / M3U8 playlists
-- Custom playlist covers
-- Automatic collage and gradient covers
-
-### Metadata
-
-- Edit song title, artist, and album
-- Change cover artwork
-- Edit lyrics
-- Reveal tracks in your system file explorer
-
-### Customization
-
-- Multiple built-in themes
-- Animated ambient backgrounds
-- Custom fonts
-- Animation presets
+<img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/appgif.gif" width="100%" alt="omus demo">
 
 ---
 
-## Getting Started
+## What's Inside
 
-### Requirements
+* **Format Support:** MP3, FLAC, WAV, M4A, OGG, AAC, and local video files.
+* **Synced Lyrics:** Auto-fetches lyrics via LRCLIB with manual search, timing offsets, and click-to-seek support.
+* **Audio Controls:** 10-band equalizer with presets, customizable crossfade, sleep timer, and live visualizers (waveform, bars, radial).
+* **Library & Playlists:** Drag-and-drop import, local play count tracking, custom metadata editing, album covers, and M3U/M3U8 import/export.
+* **Customization:** Built-in UI themes, ambient background modes, and full UI scaling (70–160%).
 
-- Node.js 20+
-- npm
-
-### Install
+## Local Development
 
 ```bash
+# Install dependencies
 npm install
-````
 
-### Development
-
-```bash
+# Run dev mode
 npm run dev
-```
 
-### Production Build
-
-```bash
-npm run build
-```
-
-Platform-specific builds:
-
-```bash
+# Package for Windows
 npm run build:win
-npm run build:mac
-npm run build:linux
+
 ```
 
-Create an unpacked build:
+### Architecture Overview
 
-```bash
-npm run build:unpack
-```
-
-Start a built version:
-
-```bash
-npm run start
-```
-
----
-
-## Keyboard Shortcuts
-
-| Key         | Action                    |
-| ----------- | ------------------------- |
-| `Space`     | Play / Pause              |
-| `←` / `→`   | Seek 5 seconds            |
-| `Shift + ←` | Previous track            |
-| `Shift + →` | Next track                |
-| `L`         | Toggle lyrics             |
-| `Q`         | Toggle queue              |
-| `M`         | Mute                      |
-| `F`         | Toggle fullscreen player  |
-| `E`         | Open equalizer            |
-| `Esc`       | Close modals / fullscreen |
-
-Media keys from keyboards, headphones, and your operating system are also supported.
-
----
-
-## Tech Stack
-
-* Electron
-* React
-* TypeScript
-* Vite
-* SQLite
-* Web Audio API
-
----
-
-## Architecture
-
-omus uses a custom `omus-media://` protocol to stream local audio files directly from disk with range request support.
-
-The audio pipeline uses the Web Audio API:
-
-```text
-Audio File
-    ↓
-Media Element
-    ↓
-Equalizer
-    ↓
-Analyser
-    ↓
-Volume
-    ↓
-Speakers
-```
-
-SQLite stores the music library and playlists, while application settings are stored locally.
-
----
-
-## Project Structure
-
-```text
-src/
-├── main/          # Electron main process
-├── preload/       # Secure IPC bridge
-└── renderer/      # React application
-    └── src/
-        ├── components/
-        ├── hooks/
-        ├── constants/
-        └── types/
-```
-
----
-
-## Development Checks
-
-```bash
-npm run typecheck
-npm run lint
-npm run build
-```
-
----
-
-## Contributing
-
-Contributions are welcome.
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run the development checks
-5. Open a pull request
+* **Storage:** Local SQLite database for library indexing and playback history.
+* **Audio:** Web Audio API (`Source -> EQ -> Analyser -> Output`) served via a custom `omus-media://` protocol for direct disk streaming.
+* **Process Structure:** `src/main` (Electron), `src/preload` (IPC bridge), `src/renderer` (React UI).
 
 ---
 
 ## License
 
-Distributed under a non-commercial, source-available license.
-
-See [LICENSE](LICENSE) for details.
+Source-available under a non-commercial license. See [LICENSE](https://www.google.com/search?q=LICENSE) for details.
