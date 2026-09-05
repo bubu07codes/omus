@@ -88,7 +88,7 @@ export function ErrorScreen({ error, errorInfo, onReset }: ErrorScreenProps): Re
 
       <div className="err-card">
         <div className="err-icon">!</div>
-        <h1>Oops! Something went wrong</h1>
+        <h1>Oops!  Something went wrong</h1>
         <p>
           omus hit an unexpected error, try reloading the app, or copy the debug details below to include in a bug report and make an issue on github to help us fix the issue.
         </p>
