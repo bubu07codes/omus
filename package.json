@@ -56,5 +56,20 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^7.2.6"
+  },
+  "build": {
+    "appId": "com.bubu07.omus",
+    "productName": "omus",
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "bubu07codes ",
+        "repo": "omus",
+        "releaseType": "draft"
+      }
+    ]
   }
 }
