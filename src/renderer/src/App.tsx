@@ -1,6 +1,13 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  useTransition,
+  useDeferredValue
+} from 'react'
 import {
-  ListOrdered,
   Mic2,
   Plus,
   FolderPlus,
@@ -17,8 +24,6 @@ import {
   Volume2,
   Volume1,
   VolumeX,
-  ChevronUp,
-  ChevronDown,
   Music,
   AlignLeft,
   AlignCenter,
@@ -43,12 +48,17 @@ import {
   Sliders,
   Moon,
   Upload,
-  Edit3,
   GripVertical,
   Video,
   Flame,
   TrendingUp,
-  ListMusic
+  ListMusic,
+  Settings2,
+  Library,
+  Palette,
+  Plug,
+  Keyboard,
+  Code2,
 } from 'lucide-react'
 import {
   Track,
@@ -83,6 +93,13 @@ import { GLOBAL_CSS } from './constants/globalCss'
 import { isVideoFile } from './constants/media'
 import { PlaylistCoverArt } from './components/Shared/PlaylistCoverArt'
 import { TrackContextMenu, TrackMenuHandlers } from './components/Shared/TrackContextMenu'
+import {
+  LibraryTableRow,
+  LibraryCardRow,
+  LibraryGroupRow,
+  QueueCard
+} from './components/TrackRows'
+import { LyricLine } from './components/LyricLine'
 import { TitleBar } from './components/TitleBar'
 import { LoadingScreen } from './components/LoadingScreen'
 
@@ -143,6 +160,23 @@ interface SavedSettings {
   recentlyPlayed?: string[]
   uiScale?: number
 }
+
+// Categories shown in the Settings sidebar. Order matches the on-page flow.
+const SETTINGS_CATS: {
+  id: string
+  label: string
+  Icon: React.ComponentType<{ size?: number | string }>
+}[] = [
+  { id: 'lyrics', label: 'Lyrics', Icon: Mic2 },
+  { id: 'audio', label: 'Sound & Vision', Icon: Sliders },
+  { id: 'ambience', label: 'Ambience', Icon: Sparkles },
+  { id: 'integrations', label: 'Integrations', Icon: Plug },
+  { id: 'appearance', label: 'Appearance', Icon: Palette },
+  { id: 'playback', label: 'Playback', Icon: Play },
+  { id: 'library', label: 'Library', Icon: Library },
+  { id: 'shortcuts', label: 'Shortcuts', Icon: Keyboard },
+  { id: 'advanced', label: 'Advanced', Icon: Code2 }
+]
 
 export default function App() {
   // ---- Library & playlists state ----
@@ -221,7 +255,9 @@ export default function App() {
   const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false)
   const [tagEditorTrack, setTagEditorTrack] = useState<Track | null>(null)
   const [isManualLyricsOpen, setIsManualLyricsOpen] = useState(false)
+  const [lyricsOptionsOpen, setLyricsOptionsOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
+  const [activeSettingsCat, setActiveSettingsCat] = useState('lyrics')
 
   // ---- Upload Flow ----
   const [pendingUploads, setPendingUploads] = useState<PendingTrack[]>([])
@@ -246,6 +282,8 @@ export default function App() {
   const fullscreenProgressRef = useRef<HTMLDivElement>(null)
   const lyricsContainerRef = useRef<HTMLDivElement>(null)
   const fullscreenLyricsRef = useRef<HTMLDivElement>(null)
+  const lyricsTrackRef = useRef<HTMLDivElement>(null)
+  const fullscreenLyricsTrackRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   // Latest active lyric line for effects that must read it without re-running
   // (e.g. the fullscreen ResizeObserver which re-centers on layout changes).
@@ -300,7 +338,6 @@ export default function App() {
   const currentAnim = PRESET_ANIMATIONS.find((a) => a.id === animId) ?? PRESET_ANIMATIONS[1]
   const animOff = currentAnim.id === 'off'
   const uiTransition = currentAnim.uiTransition
-  const scrollBehavior = currentAnim.scrollBehavior
 
   // ---- Lyrics display settings ----
   const [lyricFontSize, setLyricFontSize] = useState<number>(28)
@@ -327,85 +364,15 @@ export default function App() {
     { id: 'wave', name: 'Wave' }
   ]
 
-  // Returns per-line style/class for the chosen lyric animation mode.
-  // Smoothness rules:
-  //  - animate ONLY compositor-friendly properties (transform, opacity) plus
-  //    cheap color/text-shadow; never animate `filter: blur()` (full re-raster
-  //    every frame = the worst lyric stutter).
-  //  - every changed property is covered by the transition string so nothing
-  //    "pops" instantly when a line toggles active/inactive.
-  const getLyricAnim = (isActive: boolean, isPast: boolean) => {
-    const origin =
-      lyricAlignment === 'left'
-        ? 'left center'
-        : lyricAlignment === 'right'
-          ? 'right center'
-          : 'center'
-    const blurPx = isActive ? 0 : isPast ? lyricInactiveBlur : lyricInactiveBlur * 0.5
-    const dim = isActive ? 1 : isPast ? lyricDimLevel * 0.6 : lyricDimLevel
-    const color = isActive ? 'var(--text-primary)' : 'var(--text-secondary)'
-    // Static (non-animated) per-state value; opacity/transform carry the motion.
-    const base = { opacity: dim, color, filter: `blur(${blurPx}px)`, transformOrigin: origin }
-    const smooth =
-      'transform 0.55s cubic-bezier(0.22,1,0.36,1), opacity 0.55s ease, color 0.55s ease'
-
-    switch (lyricAnimation) {
-      case 'slide':
-        return {
-          className: '',
-          style: {
-            ...base,
-            transform: isActive
-              ? 'translateX(0)'
-              : isPast
-                ? 'translateX(18px)'
-                : 'translateX(-14px)',
-            transition: smooth
-          }
-        }
-      case 'glow':
-        return {
-          className: '',
-          style: {
-            ...base,
-            textShadow: isActive ? '0 0 18px var(--accent), 0 0 44px var(--accent)' : 'none',
-            transition: `${smooth}, text-shadow 0.55s ease`
-          }
-        }
-      case 'fade':
-        return {
-          className: '',
-          style: {
-            ...base,
-            filter: `blur(${isActive ? 0 : blurPx * 0.3}px)`,
-            transition: smooth
-          }
-        }
-      case 'wave':
-        return {
-          className: isActive ? 'lyric-wave' : '',
-          style: {
-            ...base,
-            // transform is driven by the lyricWave keyframes (compositor-only),
-            // so we only transition opacity/color here — no conflict.
-            transition: 'opacity 0.55s ease, color 0.55s ease'
-          }
-        }
-      case 'scale':
-      default:
-        return {
-          className: '',
-          style: {
-            ...base,
-            transform: isActive ? `scale(${lyricActiveScale})` : 'scale(0.96)',
-            transition: smooth
-          }
-        }
-    }
-  }
-
   // ---- Toast ----
   const { toasts, addToast, removeToast } = useToast()
+  // Deferred search + transitioned view switches: heavy UI updates happen in a
+  // lower-priority transition instead of blocking paint inside the click handler.
+  const [, startTransition] = useTransition()
+  const deferredSearchQuery = useDeferredValue(searchQuery)
+  const navigateView = useCallback((v: Parameters<typeof setView>[0]) => {
+    startTransition(() => setView(v))
+  }, [])
 
   // ---- Audio engine callbacks ----
   const advanceToNextRef = useRef<() => void>(() => {})
@@ -461,8 +428,7 @@ export default function App() {
     setRawLyrics,
     parsedLyrics,
     offsetMs,
-    adjustOffset,
-    resetOffset,
+    setOffsetMs,
     getActiveLyricIndex,
     fetchLyricsFromOnline,
     isFetchingLyrics: isFetchingCurrentLyrics
@@ -478,32 +444,40 @@ export default function App() {
   const isCurrentLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false
   const progress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0
 
-  // Scrolls a lyric line to a stable ~38% from the top of the visible panel.
-  // Unlike scrollIntoView({ block: 'center' }), this clamps to the scroll
-  // bounds so the first/last lines never end up parked under the panel's edge
-  // fade masks. Works for both the in-app and the fullscreen lyric panels.
+  // Butter-smooth lyric centering. Instead of snapping scrollTop (which "chops"),
+  // we translate an inner .lyrics-track with a CSS transform — the compositor
+  // glides it at 60fps with zero layout cost. The track gets dynamic top/bottom
+  // padding (~42% of the viewport height) so the first and last lines can always
+  // be centered and never get pinned under the fade mask or clipped. Works for
+  // both the in-app and the fullscreen lyric panels. `instant` skips the glide
+  // (used when opening fullscreen / switching tracks / resizing).
   const scrollLyricToCenter = useCallback(
-    (container: HTMLDivElement | null, index: number): void => {
-      if (!container) return
-      const el = container.children[index] as HTMLElement | undefined
+    (
+      viewport: HTMLDivElement | null,
+      track: HTMLDivElement | null,
+      index: number,
+      instant = false
+    ): void => {
+      if (!viewport || !track) return
+      const el = track.children[index] as HTMLElement | undefined
       if (!el) return
-      const containerRect = container.getBoundingClientRect()
-      const elRect = el.getBoundingClientRect()
-      // Distance of the line from the top of the scroll content.
-      const elTopInContent = elRect.top - containerRect.top + container.scrollTop
-      const target = elTopInContent - container.clientHeight * 0.38
-      const max = Math.max(0, container.scrollHeight - container.clientHeight)
+
+      const padY = Math.round(viewport.clientHeight * 0.42)
+      track.style.paddingTop = `${padY}px`
+      track.style.paddingBottom = `${padY}px`
+
+      const target = el.offsetTop - (viewport.clientHeight - el.clientHeight) / 2
+      const max = Math.max(0, track.scrollHeight - viewport.clientHeight)
       const clamped = Math.max(0, Math.min(max, target))
 
-      // The theme's animation preset sets scroll-behavior to "smooth"; a
-      // programmatic scrollTop would then animate and fight the lyric line
-      // transitions, causing the stutter. Force an instant "auto" jump.
-      container.style.scrollBehavior = 'auto'
-      container.scrollTop = clamped
-      requestAnimationFrame(() => {
-        // Let the stylesheet rule take over again for any user/timer scrolling.
-        if (container) container.style.scrollBehavior = ''
-      })
+      if (instant) {
+        track.style.transition = 'none'
+        track.style.transform = `translateY(${-clamped}px)`
+        void track.offsetHeight // force reflow so the next move animates again
+        track.style.transition = ''
+      } else {
+        track.style.transform = `translateY(${-clamped}px)`
+      }
     },
     []
   )
@@ -511,20 +485,54 @@ export default function App() {
   // ----- Navigation & Lyrics auto-scroll -----
   useEffect(() => {
     if (activeLyricIndex < 0) return
-    if (lyricsContainerRef.current && view === 'lyrics') {
-      scrollLyricToCenter(lyricsContainerRef.current, activeLyricIndex)
+    if (view === 'lyrics') {
+      scrollLyricToCenter(lyricsContainerRef.current, lyricsTrackRef.current, activeLyricIndex)
     }
-    if (fullscreenLyricsRef.current && isFullscreenCover) {
-      scrollLyricToCenter(fullscreenLyricsRef.current, activeLyricIndex)
+    if (isFullscreenCover) {
+      scrollLyricToCenter(
+        fullscreenLyricsRef.current,
+        fullscreenLyricsTrackRef.current,
+        activeLyricIndex
+      )
     }
   }, [activeLyricIndex, view, isFullscreenCover, scrollLyricToCenter])
 
-  // Initial scroll when fullscreen opens
+  // Initial scroll when fullscreen opens — run ONLY on open/close, not on every
+  // line change. (Including activeLyricIndex in deps here made this cancel the
+  // smooth glide with an instant snap on each new line, which is why fullscreen
+  // looked choppy while the normal view glided.) Read the live index via the ref
+  // so the snap only happens once, when the panel mounts.
   useEffect(() => {
-    if (isFullscreenCover && fullscreenLyricsRef.current && activeLyricIndex >= 0) {
-      scrollLyricToCenter(fullscreenLyricsRef.current, activeLyricIndex)
+    if (isFullscreenCover && activeLyricIndexRef.current >= 0) {
+      scrollLyricToCenter(
+        fullscreenLyricsRef.current,
+        fullscreenLyricsTrackRef.current,
+        activeLyricIndexRef.current,
+        true
+      )
     }
-  }, [isFullscreenCover, activeLyricIndex, scrollLyricToCenter])
+  }, [isFullscreenCover, scrollLyricToCenter])
+
+  // Reset the lyric panels to the top the instant a new track loads. Without
+  // this the panel stays wherever the previous song left it while the first
+  // line of the new song hasn't become active yet (instrumental intros, etc.).
+  // Re-applies the centering padding so the first line can still center later.
+  useEffect(() => {
+    const pairs: [HTMLDivElement | null, HTMLDivElement | null][] = [
+      [lyricsContainerRef.current, lyricsTrackRef.current],
+      [fullscreenLyricsRef.current, fullscreenLyricsTrackRef.current]
+    ]
+    for (const [viewport, track] of pairs) {
+      if (!viewport || !track) continue
+      const padY = Math.round(viewport.clientHeight * 0.42)
+      track.style.paddingTop = `${padY}px`
+      track.style.paddingBottom = `${padY}px`
+      track.style.transition = 'none'
+      track.style.transform = 'translateY(0px)'
+      void track.offsetHeight
+      track.style.transition = ''
+    }
+  }, [currentTrack?.id])
 
   // Keep the ref in sync so resize-driven re-centering reads the live index.
   useEffect(() => {
@@ -533,19 +541,27 @@ export default function App() {
 
   // Never let a layout change (window/fullscreen resize, font load, lyric font
   // setting tweaks) leave the active line clipped under the fade masks or the
-  // panel edges — re-center whenever the panel's box changes.
+  // panel edges — re-center instantly whenever a mounted panel's box changes.
   useEffect(() => {
-    if (!isFullscreenCover) return
-    const container = fullscreenLyricsRef.current
-    if (!container) return
     const ro = new ResizeObserver(() => {
-      if (activeLyricIndexRef.current >= 0) {
-        scrollLyricToCenter(container, activeLyricIndexRef.current)
+      const idx = activeLyricIndexRef.current
+      if (idx < 0) return
+      if (view === 'lyrics') {
+        scrollLyricToCenter(lyricsContainerRef.current, lyricsTrackRef.current, idx, true)
+      }
+      if (isFullscreenCover) {
+        scrollLyricToCenter(
+          fullscreenLyricsRef.current,
+          fullscreenLyricsTrackRef.current,
+          idx,
+          true
+        )
       }
     })
-    ro.observe(container)
+    if (lyricsContainerRef.current) ro.observe(lyricsContainerRef.current)
+    if (fullscreenLyricsRef.current) ro.observe(fullscreenLyricsRef.current)
     return () => ro.disconnect()
-  }, [isFullscreenCover, scrollLyricToCenter])
+  }, [view, isFullscreenCover, scrollLyricToCenter])
 
   // ---- Fullscreen auto-hiding playback chrome ----
   const armFsHideTimer = (): void => {
@@ -617,6 +633,43 @@ export default function App() {
     [currentTrack, setRawLyrics]
   )
 
+  // Fetch lyrics for the current track and persist them (used by the lyrics
+  // settings popover in the header of the lyrics view).
+  const handleFetchCurrentLyrics = useCallback(() => {
+    if (!currentTrack) return
+    fetchLyricsFromOnline(currentTrack).then((lrc) => {
+      if (lrc) persistLyrics(currentTrack, lrc)
+    })
+  }, [currentTrack, fetchLyricsFromOnline, persistLyrics])
+
+  // ----- Per-track lyric offset persistence -----
+  // The calibration offset is stored per track in the DB (tracks.lyrics_offset),
+  // patched into the in-memory track lists, and restored when that track loads.
+  const persistLyricOffset = useCallback((trackId: string, offsetMsValue: number) => {
+    const safeOffset = Math.round(offsetMsValue) || 0
+    const patch = (list: Track[]) =>
+      list.map((t) => (t.id === trackId ? { ...t, lyrics_offset: safeOffset } : t))
+    setLibrary(patch)
+    setQueue(patch)
+    setPlaylistTracks(patch)
+    if (window.api?.updateTrackLyricOffset) window.api.updateTrackLyricOffset(trackId, safeOffset)
+  }, [])
+
+  // Adjust the live offset and immediately write the new value to the current
+  // track's DB row + in-memory track objects. This runs in the click handler so
+  // the value is saved before any subsequent track switch can happen, and it
+  // closes over the fresh offsetMs/currentTrack from this render.
+  const handleLyricOffset = (deltaMs: number): void => {
+    const next = offsetMs + deltaMs
+    setOffsetMs(next)
+    if (currentTrack) persistLyricOffset(currentTrack.id, next)
+  }
+
+  const handleLyricOffsetReset = (): void => {
+    setOffsetMs(0)
+    if (currentTrack) persistLyricOffset(currentTrack.id, 0)
+  }
+
   // ----- Auto-fetch lyrics when a track has none (toggleable in Settings) -----
   const maybeAutoFetchLyrics = useCallback(
     (track: Track) => {
@@ -647,12 +700,13 @@ export default function App() {
       const track = targetQueue[index]
       setCurrentIndex(index)
       setRawLyrics(track.lyrics || '')
+      setOffsetMs(track.lyrics_offset || 0)
       maybeAutoFetchLyrics(track)
       recordPlay(track.id)
 
       await playTrack(track)
     },
-    [queue, playTrack, setRawLyrics, maybeAutoFetchLyrics, recordPlay]
+    [queue, playTrack, setRawLyrics, setOffsetMs, maybeAutoFetchLyrics, recordPlay]
   )
 
   const advanceToNext = useCallback(() => {
@@ -731,13 +785,14 @@ export default function App() {
       const track = targetQueue[index]
       setCurrentIndex(index)
       setRawLyrics(track.lyrics || '')
+      setOffsetMs(track.lyrics_offset || 0)
       maybeAutoFetchLyrics(track)
 
       // Load the source and seek into the live audio engine without
       // auto-playing (resumes later on user play gesture).
       await cue(track, offsetSecs)
     },
-    [queue, setRawLyrics, cue, maybeAutoFetchLyrics]
+    [queue, setRawLyrics, setOffsetMs, cue, maybeAutoFetchLyrics]
   )
 
   // ---- Initialization ----
@@ -844,10 +899,10 @@ export default function App() {
   // ---- Keyboard Shortcuts ----
   const toggleLyricsView = () => {
     if (view === 'lyrics') {
-      setView(previousView || 'library')
+      navigateView(previousView || 'library')
     } else {
       setPreviousView(view as 'home' | 'library' | 'playlists' | 'queue' | 'settings')
-      setView('lyrics')
+      navigateView('lyrics')
     }
   }
 
@@ -870,7 +925,7 @@ export default function App() {
         toggleLyricsView()
       } else if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault()
-        setView((v) => (v === 'queue' ? 'library' : 'queue'))
+        navigateView(view === 'queue' ? 'library' : 'queue')
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault()
         toggleMute()
@@ -897,6 +952,7 @@ export default function App() {
         if (isEqOpen) setIsEqOpen(false)
         if (isSleepTimerOpen) setIsSleepTimerOpen(false)
         if (contextMenu) setContextMenu(null)
+        if (lyricsOptionsOpen) setLyricsOptionsOpen(false)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -911,7 +967,8 @@ export default function App() {
     isFullscreenCover,
     isEqOpen,
     isSleepTimerOpen,
-    contextMenu
+    contextMenu,
+    lyricsOptionsOpen
   ])
 
   // ---- Persist Settings ----
@@ -1401,19 +1458,27 @@ export default function App() {
     setIsFetchingLyrics(false)
   }
 
+  const refreshPlaylistCovers = useCallback(() => {
+    window.api.getPlaylistCovers().then((m) => setPlaylistCovers(m || {}))
+  }, [])
+
   // ---- Track deletion ----
-  const handleDeleteTrack = async (trackId: string, e?: React.MouseEvent) => {
-    e?.stopPropagation()
-    if (confirmBeforeDelete && !window.confirm('Delete this track? This cannot be undone.')) return
-    const success = await window.api.deleteTrack(trackId)
-    if (success) {
-      setLibrary((prev) => prev.filter((t) => t.id !== trackId))
-      setQueue((prev) => prev.filter((t) => t.id !== trackId))
-      setPlaylistTracks((prev) => prev.filter((t) => t.id !== trackId))
-      refreshPlaylistCovers()
-      addToast('Track deleted', undefined, 'info')
-    }
-  }
+  const handleDeleteTrack = useCallback(
+    async (trackId: string, e?: React.MouseEvent) => {
+      e?.stopPropagation()
+      if (confirmBeforeDelete && !window.confirm('Delete this track? This cannot be undone.'))
+        return
+      const success = await window.api.deleteTrack(trackId)
+      if (success) {
+        setLibrary((prev) => prev.filter((t) => t.id !== trackId))
+        setQueue((prev) => prev.filter((t) => t.id !== trackId))
+        setPlaylistTracks((prev) => prev.filter((t) => t.id !== trackId))
+        refreshPlaylistCovers()
+        addToast('Track deleted', undefined, 'info')
+      }
+    },
+    [confirmBeforeDelete, refreshPlaylistCovers, addToast]
+  )
 
   // ---- Tag Editor ----
   const handleSaveTagEdit = async (updated: Track) => {
@@ -1511,21 +1576,21 @@ export default function App() {
     if (idx >= 0) loadAndPlayIndex(idx, playlistTracks)
   }
 
-  const handleAddTrackToPlaylist = async (
-    trackId: string,
-    e: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const val = e.target.value
-    if (!val) return
-    await window.api.addTrackToPlaylist(val, trackId)
-    if (selectedPlaylistId === val) {
-      const tracks = await window.api.getPlaylistTracks(val)
-      setPlaylistTracks(tracks)
-    }
-    refreshPlaylistCovers()
-    e.target.value = ''
-    addToast('Added to playlist', undefined, 'success')
-  }
+  const handleAddTrackToPlaylist = useCallback(
+    async (trackId: string, e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = e.target.value
+      if (!val) return
+      await window.api.addTrackToPlaylist(val, trackId)
+      if (selectedPlaylistId === val) {
+        const tracks = await window.api.getPlaylistTracks(val)
+        setPlaylistTracks(tracks)
+      }
+      refreshPlaylistCovers()
+      e.target.value = ''
+      addToast('Added to playlist', undefined, 'success')
+    },
+    [selectedPlaylistId, refreshPlaylistCovers, addToast]
+  )
 
   const handleRemoveFromPlaylist = async (
     playlistId: string,
@@ -1536,10 +1601,6 @@ export default function App() {
     await window.api.removeTrackFromPlaylist(playlistId, trackId)
     setPlaylistTracks((prev) => prev.filter((t) => t.id !== trackId))
     refreshPlaylistCovers()
-  }
-
-  const refreshPlaylistCovers = () => {
-    window.api.getPlaylistCovers().then((m) => setPlaylistCovers(m || {}))
   }
 
   useEffect(() => {
@@ -1628,24 +1689,30 @@ export default function App() {
     )
   }
 
-  const handleMoveQueueItem = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= queue.length) return
-    const newQueue = [...queue]
-    const [movedItem] = newQueue.splice(index, 1)
-    newQueue.splice(targetIndex, 0, movedItem)
-    setQueue(newQueue)
-    if (currentIndex === index) setCurrentIndex(targetIndex)
-    else if (currentIndex === targetIndex) setCurrentIndex(index)
-  }
+  const handleMoveQueueItem = useCallback(
+    (index: number, direction: 'up' | 'down') => {
+      const targetIndex = direction === 'up' ? index - 1 : index + 1
+      if (targetIndex < 0 || targetIndex >= queue.length) return
+      const newQueue = [...queue]
+      const [movedItem] = newQueue.splice(index, 1)
+      newQueue.splice(targetIndex, 0, movedItem)
+      setQueue(newQueue)
+      if (currentIndex === index) setCurrentIndex(targetIndex)
+      else if (currentIndex === targetIndex) setCurrentIndex(index)
+    },
+    [queue, currentIndex]
+  )
 
-  const handleRemoveFromQueue = (index: number) => {
-    const newQueue = queue.filter((_, i) => i !== index)
-    setQueue(newQueue)
-    if (currentIndex === index) {
-      setCurrentIndex(null)
-    } else if (currentIndex !== null && currentIndex > index) setCurrentIndex(currentIndex - 1)
-  }
+  const handleRemoveFromQueue = useCallback(
+    (index: number) => {
+      const newQueue = queue.filter((_, i) => i !== index)
+      setQueue(newQueue)
+      if (currentIndex === index) {
+        setCurrentIndex(null)
+      } else if (currentIndex !== null && currentIndex > index) setCurrentIndex(currentIndex - 1)
+    },
+    [queue, currentIndex]
+  )
 
   const handleClearQueue = () => {
     setQueue([])
@@ -1685,15 +1752,39 @@ export default function App() {
   // Open the shared track context menu at the cursor for any track in any view.
   // Each view supplies its own `onPlay` closure (its source list + index), and
   // optionally `fromPlaylist` so the menu offers "Remove from Playlist".
-  const openTrackMenu = (
-    e: React.MouseEvent,
-    track: Track,
-    onPlay: () => void,
-    fromPlaylist = false
-  ): void => {
-    e.preventDefault()
-    setContextMenu({ x: e.clientX, y: e.clientY, track, onPlay, fromPlaylist })
-  }
+  const openTrackMenu = useCallback(
+    (
+      e: React.MouseEvent,
+      track: Track,
+      onPlay: () => void,
+      fromPlaylist = false
+    ): void => {
+      e.preventDefault()
+      setContextMenu({ x: e.clientX, y: e.clientY, track, onPlay, fromPlaylist })
+    },
+    []
+  )
+
+  // Stable row-level context-menu handlers (used by the memoized list rows).
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, track: Track, list: Track[], index: number) => {
+      openTrackMenu(e, track, () => loadAndPlayIndex(index, list))
+    },
+    [openTrackMenu, loadAndPlayIndex]
+  )
+
+  const handleQueueContextMenu = useCallback(
+    (e: React.MouseEvent, track: Track, index: number) => {
+      openTrackMenu(e, track, () => loadAndPlayIndex(index))
+    },
+    [openTrackMenu, loadAndPlayIndex]
+  )
+
+  // Used by the memoized grouped-library rows to end a drag cleanly.
+  const handleDragRowEnd = useCallback(() => {
+    setDragTrackId(null)
+    setOverTrackId(null)
+  }, [])
 
   // Handlers shared by every track context menu instance.
   const trackMenuHandlers: TrackMenuHandlers = {
@@ -1767,16 +1858,43 @@ export default function App() {
     addToast('Settings reset to defaults', undefined, 'info')
   }
 
+  // ---- Settings sidebar navigation (categories) ----
+  const handleSettingsCatClick = (id: string): void => {
+    setActiveSettingsCat(id)
+    const scrollEl = document.querySelector('main.content')
+    const el = scrollEl?.querySelector(`#settings-${id}`) as HTMLElement | null
+    if (el && scrollEl) scrollEl.scrollTo({ top: el.offsetTop - 16, behavior: 'smooth' })
+  }
+
+  // Scroll-spy: highlight the category currently in view while the settings page
+  // scrolls. Sections sit inside the scrolling <main.content> (position:relative),
+  // so offsetTop and scrollTop are comparable directly.
+  useEffect(() => {
+    if (view !== 'settings') return
+    const scrollEl = document.querySelector('main.content')
+    if (!scrollEl) return
+    const onSettingsScroll = (): void => {
+      let current = SETTINGS_CATS[0].id
+      for (const cat of SETTINGS_CATS) {
+        const el = scrollEl.querySelector(`#settings-${cat.id}`) as HTMLElement | null
+        if (el && el.offsetTop <= scrollEl.scrollTop + 140) current = cat.id
+      }
+      setActiveSettingsCat(current)
+    }
+    scrollEl.addEventListener('scroll', onSettingsScroll, { passive: true })
+    return () => scrollEl.removeEventListener('scroll', onSettingsScroll)
+  }, [view])
+
   // ---- Filtered / sorted data ----
   const filteredLibrary = useMemo(
     () =>
       library.filter(
         (t) =>
-          t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          t.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          t.album.toLowerCase().includes(searchQuery.toLowerCase())
+          t.title.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+          t.artist.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+          t.album.toLowerCase().includes(deferredSearchQuery.toLowerCase())
       ),
-    [library, searchQuery]
+    [library, deferredSearchQuery]
   )
 
   // ---- Home screen aggregates ----
@@ -1939,9 +2057,9 @@ export default function App() {
   const libraryGroups = useMemo(() => {
     const filtered = orderedTracks.filter(
       (t) =>
-        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.album.toLowerCase().includes(searchQuery.toLowerCase())
+        t.title.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+        t.artist.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+        t.album.toLowerCase().includes(deferredSearchQuery.toLowerCase())
     )
     const map = new Map<string, { key: string; artist: string; album: string; tracks: Track[] }>()
     for (const t of filtered) {
@@ -1957,41 +2075,47 @@ export default function App() {
       map.get(k)!.tracks.push(t)
     }
     return Array.from(map.values())
-  }, [orderedTracks, searchQuery])
+  }, [orderedTracks, deferredSearchQuery])
 
-  const handleGroupDrop = (targetKey: string) => {
-    const srcKey = dragGroupKey
-    setDragGroupKey(null)
-    setOverGroupKey(null)
-    if (!srcKey || srcKey === targetKey) return
-    const keys = libraryGroups.map((g) => g.key)
-    const from = keys.indexOf(srcKey)
-    const to = keys.indexOf(targetKey)
-    if (from === -1 || to === -1 || from === to) return
-    const newKeys = [...keys]
-    const [moved] = newKeys.splice(from, 1)
-    newKeys.splice(to, 0, moved)
-    const byKey = new Map(libraryGroups.map((g) => [g.key, g.tracks.map((t) => t.id)]))
-    setCustomTrackOrder(newKeys.flatMap((k) => byKey.get(k) || []))
-  }
+  const handleGroupDrop = useCallback(
+    (targetKey: string) => {
+      const srcKey = dragGroupKey
+      setDragGroupKey(null)
+      setOverGroupKey(null)
+      if (!srcKey || srcKey === targetKey) return
+      const keys = libraryGroups.map((g) => g.key)
+      const from = keys.indexOf(srcKey)
+      const to = keys.indexOf(targetKey)
+      if (from === -1 || to === -1 || from === to) return
+      const newKeys = [...keys]
+      const [moved] = newKeys.splice(from, 1)
+      newKeys.splice(to, 0, moved)
+      const byKey = new Map(libraryGroups.map((g) => [g.key, g.tracks.map((t) => t.id)]))
+      setCustomTrackOrder(newKeys.flatMap((k) => byKey.get(k) || []))
+    },
+    [dragGroupKey, libraryGroups]
+  )
 
-  const handleTrackDrop = (targetId: string) => {
-    const srcId = dragTrackId
-    setDragTrackId(null)
-    setOverTrackId(null)
-    if (!srcId || srcId === targetId) return
-    // Only allow reordering within the same album group.
-    const srcGroup = libraryGroups.find((g) => g.tracks.some((t) => t.id === srcId))
-    const sameGroup = !!srcGroup?.tracks.some((t) => t.id === targetId)
-    if (!sameGroup) return
-    const ids = customTrackOrder ? [...customTrackOrder] : orderedTracks.map((t) => t.id)
-    const from = ids.indexOf(srcId)
-    const to = ids.indexOf(targetId)
-    if (from === -1 || to === -1 || from === to) return
-    const [moved] = ids.splice(from, 1)
-    ids.splice(to, 0, moved)
-    setCustomTrackOrder(ids)
-  }
+  const handleTrackDrop = useCallback(
+    (targetId: string) => {
+      const srcId = dragTrackId
+      setDragTrackId(null)
+      setOverTrackId(null)
+      if (!srcId || srcId === targetId) return
+      // Only allow reordering within the same album group.
+      const srcGroup = libraryGroups.find((g) => g.tracks.some((t) => t.id === srcId))
+      const sameGroup = !!srcGroup?.tracks.some((t) => t.id === targetId)
+      if (!sameGroup) return
+      const ids = customTrackOrder ? [...customTrackOrder] : orderedTracks.map((t) => t.id)
+      const from = ids.indexOf(srcId)
+      const to = ids.indexOf(targetId)
+      if (from === -1 || to === -1 || from === to) return
+      const [moved] = ids.splice(from, 1)
+      ids.splice(to, 0, moved)
+      setCustomTrackOrder(ids)
+    },
+    [dragTrackId, libraryGroups, customTrackOrder, orderedTracks]
+  )
 
   const playGroup = (group: (typeof libraryGroups)[number]) => {
     const idx = orderedTracks.findIndex((t) => t.id === group.tracks[0]?.id)
@@ -2160,7 +2284,7 @@ export default function App() {
               key={id}
               className="rail-btn"
               data-active={view === id}
-              onClick={() => setView(id)}
+              onClick={() => navigateView(id)}
             >
               <IconComp size={19} />
               <span className="lbl">{label}</span>
@@ -2192,7 +2316,7 @@ export default function App() {
               <div
                 className="pl-empty"
                 style={{
-                  minHeight: '60vh',
+                  minHeight: '50vh',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2203,23 +2327,6 @@ export default function App() {
                 }}
               >
                 <div style={{ textAlign: 'center', maxWidth: 440, margin: '0 auto' }}>
-                  <div
-                    style={{
-                      width: 68,
-                      height: 68,
-                      borderRadius: '50%',
-                      background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                      color: 'var(--accent)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 18px',
-                      boxShadow:
-                        '0 8px 24px -4px color-mix(in srgb, var(--accent) 30%, transparent)'
-                    }}
-                  >
-                    <Music size={32} />
-                  </div>
                   <h2
                     style={{
                       fontWeight: 900,
@@ -2233,14 +2340,15 @@ export default function App() {
                   </h2>
                   <p
                     style={{
-                      fontSize: 13.5,
+                      fontSize: 15,
                       marginBottom: 24,
                       color: 'var(--text-secondary)',
                       lineHeight: 1.55
                     }}
                   >
-                    Your offline music sanctuary. Import your local audio tracks and folders to
-                    unlock your personalized Bento Home, lyrics sync, and visualizer.
+                    <b>Stream offline music, simply.</b>
+                    Import your audio tracks and folders to
+                    get your personalized Home, lyrics sync, visualizers, and more.
                   </p>
                   <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                     <button
@@ -3046,79 +3154,22 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLibrary.map((track, idx) => {
-                    const isActive = currentTrack?.id === track.id
-                    return (
-                      <tr
-                        key={track.id}
-                        className="track-row"
-                        data-active={isActive}
-                        onClick={() => loadAndPlayIndex(idx, filteredLibrary)}
-                        onContextMenu={(e) =>
-                          openTrackMenu(e, track, () => loadAndPlayIndex(idx, filteredLibrary))
-                        }
-                      >
-                        <td className="idx">
-                          {isActive && isPlaying ? (
-                            <div className="eq">
-                              <span />
-                              <span />
-                              <span />
-                            </div>
-                          ) : (
-                            idx + 1
-                          )}
-                        </td>
-                        <td className="t-title">
-                          <div className="art-thumb">
-                            {track.cover && <img src={track.cover} alt="" />}
-                          </div>
-                          <span>{track.title}</span>
-                        </td>
-                        <td className="t-sub">{track.artist || 'Unknown Artist'}</td>
-                        <td className="t-sub">{track.album || '—'}</td>
-                        <td className="t-time">{formatTime(track.duration)}</td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <select
-                            className="field"
-                            style={{ padding: '4px 8px', fontSize: 11, height: 28 }}
-                            defaultValue=""
-                            onChange={(e) => handleAddTrackToPlaylist(track.id, e)}
-                          >
-                            <option value="" disabled>
-                              Add to playlist...
-                            </option>
-                            {playlists.map((pl) => (
-                              <option key={pl.id} value={pl.id}>
-                                {pl.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <button
-                            className="row-action"
-                            title="Edit Tags"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setTagEditorTrack(track)
-                            }}
-                          >
-                            <Edit3 size={13} />
-                          </button>
-                        </td>
-                        <td>
-                          <button
-                            className="row-action"
-                            title="Delete track"
-                            onClick={(e) => handleDeleteTrack(track.id, e)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {filteredLibrary.map((track, idx) => (
+                    <LibraryTableRow
+                      key={track.id}
+                      track={track}
+                      index={idx}
+                      list={filteredLibrary}
+                      isActive={currentTrack?.id === track.id}
+                      isPlaying={isPlaying}
+                      playlists={playlists}
+                      onLoad={loadAndPlayIndex}
+                      onContextMenu={handleRowContextMenu}
+                      onTagEdit={setTagEditorTrack}
+                      onDelete={handleDeleteTrack}
+                      onAddTrack={handleAddTrackToPlaylist}
+                    />
+                  ))}
                 </tbody>
               </table>
             ) : libraryLayout === 'group' ? (
@@ -3126,6 +3177,9 @@ export default function App() {
                 {libraryGroups.map((g) => (
                   <div key={g.key} className="library-group" style={{ marginBottom: 18 }}>
                     <div
+                      className="library-group-head"
+                      data-over={overGroupKey === g.key}
+                      data-dragging={dragGroupKey === g.key}
                       draggable
                       onDragStart={() => setDragGroupKey(g.key)}
                       onDragEnd={() => {
@@ -3139,21 +3193,6 @@ export default function App() {
                       onDrop={(e) => {
                         e.preventDefault()
                         handleGroupDrop(g.key)
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 14,
-                        padding: '10px 14px',
-                        borderRadius: 12,
-                        cursor: 'grab',
-                        background: overGroupKey === g.key ? 'var(--card-bg)' : 'transparent',
-                        border:
-                          overGroupKey === g.key
-                            ? '1px solid var(--accent)'
-                            : '1px solid rgba(128,128,128,0.14)',
-                        opacity: dragGroupKey === g.key ? 0.5 : 1,
-                        marginBottom: 8
                       }}
                       onClick={() => playGroup(g)}
                     >
@@ -3201,76 +3240,25 @@ export default function App() {
                       <GripVertical size={16} style={{ color: 'var(--text-secondary)' }} />
                     </div>
                     {g.tracks.map((track, i) => {
-                      const isActive = currentTrack?.id === track.id
                       const ordIdx = orderedTracks.findIndex((t) => t.id === track.id)
                       return (
-                        <div
+                        <LibraryGroupRow
                           key={track.id}
-                          draggable
-                          onDragStart={() => setDragTrackId(track.id)}
-                          onDragEnd={() => {
-                            setDragTrackId(null)
-                            setOverTrackId(null)
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                            setOverTrackId(track.id)
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault()
-                            handleTrackDrop(track.id)
-                          }}
-                          onClick={() => loadAndPlayIndex(ordIdx, orderedTracks)}
-                          onContextMenu={(e) =>
-                            openTrackMenu(e, track, () => loadAndPlayIndex(ordIdx, orderedTracks))
-                          }
-                          data-active={isActive}
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '28px 1fr 90px',
-                            alignItems: 'center',
-                            padding: '7px 12px',
-                            borderRadius: 8,
-                            cursor: 'pointer',
-                            fontSize: 13,
-                            background: overTrackId === track.id ? 'var(--card-bg)' : 'transparent',
-                            border:
-                              overTrackId === track.id
-                                ? '1px solid var(--accent)'
-                                : '1px solid transparent',
-                            opacity: dragTrackId === track.id ? 0.5 : 1
-                          }}
-                        >
-                          <span
-                            style={{
-                              color:
-                                isActive && isPlaying ? 'var(--accent)' : 'var(--text-secondary)',
-                              fontSize: 11,
-                              fontWeight: 700
-                            }}
-                          >
-                            {isActive && isPlaying ? '♫' : i + 1}
-                          </span>
-                          <span
-                            style={{
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              fontWeight: isActive ? 800 : 500
-                            }}
-                          >
-                            {track.title}
-                          </span>
-                          <span
-                            style={{
-                              textAlign: 'right',
-                              color: 'var(--text-secondary)',
-                              fontSize: 11
-                            }}
-                          >
-                            {formatTime(track.duration)}
-                          </span>
-                        </div>
+                          track={track}
+                          groupIndex={i}
+                          index={ordIdx}
+                          list={orderedTracks}
+                          isActive={currentTrack?.id === track.id}
+                          isPlaying={isPlaying}
+                          isOver={overTrackId === track.id}
+                          isDragging={dragTrackId === track.id}
+                          onLoad={loadAndPlayIndex}
+                          onContextMenu={handleRowContextMenu}
+                          onDragStart={setDragTrackId}
+                          onDragEnd={handleDragRowEnd}
+                          onDragOver={setOverTrackId}
+                          onDrop={handleTrackDrop}
+                        />
                       )
                     })}
                   </div>
@@ -3279,61 +3267,15 @@ export default function App() {
             ) : (
               <div className="track-grid">
                 {filteredLibrary.map((track, idx) => (
-                  <div
+                  <LibraryCardRow
                     key={track.id}
-                    className="track-card"
-                    onClick={() => loadAndPlayIndex(idx, filteredLibrary)}
-                    onContextMenu={(e) =>
-                      openTrackMenu(e, track, () => loadAndPlayIndex(idx, filteredLibrary))
-                    }
-                  >
-                    <button
-                      className="card-x"
-                      title="Delete"
-                      onClick={(e) => handleDeleteTrack(track.id, e)}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                    <div className="art">
-                      {track.cover ? (
-                        <img src={track.cover} alt="" />
-                      ) : (
-                        <div
-                          style={{
-                            display: 'flex',
-                            height: '100%',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          <Music size={28} opacity={0.3} />
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        fontWeight: 800,
-                        fontSize: 13,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
-                      {track.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--text-secondary)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        marginTop: 2
-                      }}
-                    >
-                      {track.artist || 'Unknown Artist'}
-                    </div>
-                  </div>
+                    track={track}
+                    index={idx}
+                    list={filteredLibrary}
+                    onLoad={loadAndPlayIndex}
+                    onContextMenu={handleRowContextMenu}
+                    onDelete={handleDeleteTrack}
+                  />
                 ))}
               </div>
             )}
@@ -3689,90 +3631,19 @@ export default function App() {
               </div>
             ) : (
               <div>
-                {queue.map((track, idx) => {
-                  const isCurrent = currentIndex === idx
-                  return (
-                    <div
-                      key={`${track.id}-${idx}`}
-                      className="queue-card"
-                      data-active={isCurrent}
-                      onClick={() => loadAndPlayIndex(idx)}
-                      onContextMenu={(e) => openTrackMenu(e, track, () => loadAndPlayIndex(idx))}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          minWidth: 0,
-                          flex: 1
-                        }}
-                      >
-                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', width: 22 }}>
-                          {idx + 1}
-                        </span>
-                        <div className="art-thumb">
-                          {track.cover && <img src={track.cover} alt="" />}
-                        </div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div
-                            style={{
-                              fontWeight: 800,
-                              fontSize: 13,
-                              color: isCurrent ? 'var(--accent)' : 'inherit',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}
-                          >
-                            {track.title}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: 'var(--text-secondary)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}
-                          >
-                            {track.artist || 'Unknown Artist'}
-                          </div>
-                        </div>
-                        <div
-                          style={{ fontSize: 11, color: 'var(--text-secondary)', paddingRight: 10 }}
-                        >
-                          {formatTime(track.duration)}
-                        </div>
-                      </div>
-                      <div className="queue-actions" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="queue-btn"
-                          disabled={idx === 0}
-                          onClick={() => handleMoveQueueItem(idx, 'up')}
-                          title="Move Up"
-                        >
-                          <ChevronUp size={14} />
-                        </button>
-                        <button
-                          className="queue-btn"
-                          disabled={idx === queue.length - 1}
-                          onClick={() => handleMoveQueueItem(idx, 'down')}
-                          title="Move Down"
-                        >
-                          <ChevronDown size={14} />
-                        </button>
-                        <button
-                          className="queue-btn"
-                          onClick={() => handleRemoveFromQueue(idx)}
-                          title="Remove"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
+                {queue.map((track, idx) => (
+                  <QueueCard
+                    key={`${track.id}-${idx}`}
+                    track={track}
+                    index={idx}
+                    isCurrent={currentIndex === idx}
+                    isLast={idx === queue.length - 1}
+                    onLoad={loadAndPlayIndex}
+                    onContextMenu={handleQueueContextMenu}
+                    onMove={handleMoveQueueItem}
+                    onRemove={handleRemoveFromQueue}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -3796,101 +3667,122 @@ export default function App() {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {/* Offset calibration */}
-                {parsedLyrics.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span className="lyrics-offset-badge" title="Current lyric offset">
-                      {offsetMs >= 0 ? `+${offsetMs}ms` : `${offsetMs}ms`}
-                    </span>
+                {currentTrack && (
+                  <div className="pl-options-wrap">
                     <button
-                      className="btn-plain"
-                      style={{ padding: '4px 8px', fontSize: 11 }}
-                      onClick={() => adjustOffset(-500)}
-                      title="Shift lyrics back 0.5s"
+                      className="btn btn-ghost"
+                      onClick={() => setLyricsOptionsOpen((v) => !v)}
+                      title="Lyrics settings — sync offset, fetch & search"
+                      style={{ padding: '6px 10px' }}
                     >
-                      −0.5s
+                      <Settings2 size={14} />
                     </button>
-                    <button
-                      className="btn-plain"
-                      style={{ padding: '4px 8px', fontSize: 11 }}
-                      onClick={() => adjustOffset(500)}
-                      title="Shift lyrics forward 0.5s"
-                    >
-                      +0.5s
-                    </button>
-                    {offsetMs !== 0 && (
-                      <button
-                        className="btn-plain"
-                        style={{ padding: '4px 8px', fontSize: 11 }}
-                        onClick={resetOffset}
-                      >
-                        Reset
-                      </button>
+                    {lyricsOptionsOpen && (
+                      <>
+                        <div
+                          className="pl-options-backdrop"
+                          onClick={() => setLyricsOptionsOpen(false)}
+                        />
+                        <div
+                          className="pl-options-menu"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {/* Offset calibration */}
+                          {parsedLyrics.length > 0 && (
+                            <>
+                              <div className="pl-opt-label">Sync offset</div>
+                              <div className="lyrics-options-row">
+                                <span className="lyrics-offset-badge" title="Current lyric offset">
+                                  {offsetMs >= 0 ? `+${offsetMs}ms` : `${offsetMs}ms`}
+                                </span>
+                                <button
+                                  className="btn-plain"
+                                  style={{ padding: '4px 8px', fontSize: 11 }}
+                                  onClick={() => handleLyricOffset(-500)}
+                                  title="Shift lyrics back 0.5s"
+                                >
+                                  −0.5s
+                                </button>
+                                <button
+                                  className="btn-plain"
+                                  style={{ padding: '4px 8px', fontSize: 11 }}
+                                  onClick={() => handleLyricOffset(500)}
+                                  title="Shift lyrics forward 0.5s"
+                                >
+                                  +0.5s
+                                </button>
+                                {offsetMs !== 0 && (
+                                  <button
+                                    className="btn-plain"
+                                    style={{ padding: '4px 8px', fontSize: 11 }}
+                                    onClick={handleLyricOffsetReset}
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                          <div className="pl-opt-label">Lyrics</div>
+                          <div
+                            className="pl-opt-row"
+                            onClick={handleFetchCurrentLyrics}
+                            style={
+                              isFetchingCurrentLyrics
+                                ? { opacity: 0.6, cursor: 'wait' }
+                                : undefined
+                            }
+                            title="Search and fetch lyrics from LRCLIB"
+                          >
+                            <RefreshCw
+                              size={15}
+                              className={isFetchingCurrentLyrics ? 'animate-spin' : ''}
+                            />
+                            {isFetchingCurrentLyrics ? 'Fetching...' : 'Fetch from LRCLIB'}
+                          </div>
+                          <div
+                            className="pl-opt-row"
+                            onClick={() => {
+                              setIsManualLyricsOpen(true)
+                              setLyricsOptionsOpen(false)
+                            }}
+                            title="Manually search or paste lyrics"
+                          >
+                            <Search size={15} /> Search / paste lyrics
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div>
-                )}
-                {currentTrack && (
-                  <>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: '6px 14px', fontSize: 11 }}
-                      disabled={isFetchingCurrentLyrics}
-                      onClick={() =>
-                        fetchLyricsFromOnline(currentTrack).then((lrc) => {
-                          if (lrc) persistLyrics(currentTrack, lrc)
-                        })
-                      }
-                      title="Search and fetch lyrics from LRCLIB"
-                    >
-                      <RefreshCw
-                        size={13}
-                        className={isFetchingCurrentLyrics ? 'animate-spin' : ''}
-                      />
-                      {isFetchingCurrentLyrics ? 'Fetching...' : 'Fetch Lyrics'}
-                    </button>
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: '6px 10px', fontSize: 11 }}
-                      onClick={() => setIsManualLyricsOpen(true)}
-                      title="Manually search or paste lyrics"
-                    >
-                      <Search size={13} />
-                    </button>
-                  </>
                 )}
               </div>
             </div>
             <div
               ref={lyricsContainerRef}
               className="lyrics-scroll"
-              style={{ scrollBehavior, textAlign: lyricAlignment }}
+              style={{ textAlign: lyricAlignment }}
             >
               {parsedLyrics.length > 0 ? (
-                parsedLyrics.map((line, i) => {
-                  const isActive = i === activeLyricIndex
-                  const isPast = i < activeLyricIndex
-                  const anim = getLyricAnim(isActive, isPast)
-                  const animClass = `lyric-line lyric-anim-${lyricAnimation}${anim.className ? ` ${anim.className}` : ''}`
-                  return (
-                    <div
-                      key={i}
-                      className={animClass}
-                      data-active={isActive}
-                      style={{
-                        fontSize: lyricFontSize,
-                        padding: `${lyricFontSize * lyricLineGap}px 0`,
-                        textTransform: lyricUppercase ? 'uppercase' : 'none',
-                        ...anim.style
-                      }}
-                      onClick={() => {
-                        const t = line.time
-                        seek(t)
-                      }}
-                    >
-                      {line.text || '• • •'}
-                    </div>
-                  )
-                })
+                <div ref={lyricsTrackRef} className="lyrics-track">
+                {parsedLyrics.map((line, i) => (
+                  <LyricLine
+                    key={i}
+                    line={line}
+                    isActive={i === activeLyricIndex}
+                    isPast={i < activeLyricIndex}
+                    lyricAnimation={lyricAnimation}
+                    lyricAlignment={lyricAlignment}
+                    lyricFontSize={lyricFontSize}
+                    lyricLineGap={lyricLineGap}
+                    lyricInactiveBlur={lyricInactiveBlur}
+                    lyricDimLevel={lyricDimLevel}
+                    lyricActiveScale={lyricActiveScale}
+                    lyricUppercase={lyricUppercase}
+                    variant="normal"
+                    onSeek={seek}
+                  />
+                ))}
+                </div>
               ) : (
                 <div
                   style={{
@@ -3956,7 +3848,23 @@ export default function App() {
 
         {/* SETTINGS VIEW */}
         {view === 'settings' && (
-          <div key="settings" className="view-fade" style={{ maxWidth: 740 }}>
+          <div key="settings" className="view-fade settings-layout">
+            <aside className="settings-nav">
+              {SETTINGS_CATS.map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  className="settings-nav-btn"
+                  data-active={activeSettingsCat === id}
+                  onClick={() => handleSettingsCatClick(id)}
+                >
+                  <Icon size={15} />
+                  {label}
+                </button>
+              ))}
+            </aside>
+            <div className="settings-content">
+            <h2 className="settings-page-title">Settings</h2>
+            <section id="settings-lyrics" className="settings-cat">
             <p className="eyebrow">Lyrics Display & Typography</p>
             <div className="settings-section">
               <div className="settings-row">
@@ -4156,7 +4064,9 @@ export default function App() {
                 </div>
               </div>
             </div>
+            </section>
 
+            <section id="settings-audio" className="settings-cat">
             <p className="eyebrow">Equalizer</p>
             <div className="settings-section">
               <div className="settings-row">
@@ -4343,7 +4253,9 @@ export default function App() {
                 </div>
               </div>
             </div>
+            </section>
 
+            <section id="settings-ambience" className="settings-cat">
             <p className="eyebrow">Fluid Animated Background</p>
             <div className="settings-section">
               <div className="settings-row">
@@ -4438,7 +4350,9 @@ export default function App() {
                 </>
               )}
             </div>
+            </section>
 
+            <section id="settings-integrations" className="settings-cat">
             <p className="eyebrow">Integrations</p>
             <div className="settings-section">
               <div className="settings-row">
@@ -4482,7 +4396,9 @@ export default function App() {
                 </button>
               </div>
             </div>
+            </section>
 
+            <section id="settings-appearance" className="settings-cat">
             <p className="eyebrow">Appearance & Customization</p>
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 12 }}>
@@ -4646,6 +4562,9 @@ export default function App() {
                 </div>
               </div>
             </div>
+            </section>
+
+            <section id="settings-playback" className="settings-cat">
             <p className="eyebrow">Playback</p>
             <div className="settings-section">
               <div className="settings-row">
@@ -4762,7 +4681,9 @@ export default function App() {
                 </div>
               </div>
             </div>
+            </section>
 
+            <section id="settings-library" className="settings-cat">
             <p className="eyebrow">Library</p>
             <div className="settings-section">
               <div className="settings-row">
@@ -4823,7 +4744,9 @@ export default function App() {
                 </button>
               </div>
             </div>
+            </section>
 
+            <section id="settings-shortcuts" className="settings-cat">
             <p className="eyebrow">Keyboard Shortcuts</p>
             <div className="settings-section">
               <div
@@ -4858,7 +4781,9 @@ export default function App() {
                 ))}
               </div>
             </div>
+            </section>
 
+            <section id="settings-advanced" className="settings-cat">
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 4 }}>
                 Custom CSS Overrides
@@ -4895,7 +4820,9 @@ export default function App() {
                 <RotateCcw size={14} /> Reset to defaults
               </button>
             </div>
+            </section>
           </div>
+        </div>
         )}
       </main>
 
@@ -5044,8 +4971,13 @@ export default function App() {
               onMouseLeave={handleProgressMouseLeave}
             >
               <div className="sp-scrub-bg">
-                <div className="sp-scrub-fill" style={{ width: `${progress * 100}%` }} />
-                <div className="sp-scrub-thumb" style={{ left: `${progress * 100}%` }} />
+                <div className="sp-scrub-fill" style={{ transform: `scaleX(${progress})` }} />
+                <div
+                  className="sp-scrub-thumb-rail"
+                  style={{ transform: `translateX(${progress * 100}%)` }}
+                >
+                  <div className="sp-scrub-thumb" />
+                </div>
               </div>
               {hoverSeekPercent !== null && hoverSeekSecs !== null && (
                 <div className="sp-scrub-tooltip" style={{ left: `${hoverSeekPercent * 100}%` }}>
@@ -5059,17 +4991,20 @@ export default function App() {
 
         {/* Right: Actions + Volume */}
         <div className="sp-right">
-          {/* Mini Visualizer */}
+          {/* Mini Visualizer — hidden on compact windows via [data-compact-hide]
+              so the player bar's right side never overflows into the scrubber. */}
           {visualizerMode !== 'off' && (
-            <AudioVisualizer
-              analyserNode={analyserNode}
-              isPlaying={isPlaying}
-              mode={visualizerMode}
-              accentColor="var(--accent)"
-              width={52}
-              height={28}
-              barCount={10}
-            />
+            <div data-compact-hide>
+              <AudioVisualizer
+                analyserNode={analyserNode}
+                isPlaying={isPlaying}
+                mode={visualizerMode}
+                accentColor="var(--accent)"
+                width={52}
+                height={28}
+                barCount={10}
+              />
+            </div>
           )}
 
           <button
@@ -5084,30 +5019,24 @@ export default function App() {
           <button
             className="sp-btn-icon"
             data-active={view === 'queue'}
-            onClick={() => setView((v) => (v === 'queue' ? previousView : 'queue'))}
+            onClick={() => navigateView(view === 'queue' ? previousView : 'queue')}
             title="Queue (Q)"
           >
-            <ListOrdered size={18} />
-          </button>
-          <button
-            className="sp-btn-icon"
-            onClick={() => setIsEqOpen((v) => !v)}
-            title="Equalizer (E)"
-            data-active={isEqOpen || currentEQPreset !== 'flat'}
-          >
-            <Sliders size={17} />
+            <ListMusic size={18} />
           </button>
           <button
             className="sp-btn-icon"
             data-active={fluidBgEnabled}
+            data-compact-hide
             onClick={() => setFluidBgEnabled((v) => !v)}
             title={fluidBgEnabled ? 'Disable Fluid Background' : 'Enable Fluid Background'}
           >
-            <Sparkles size={17} />
+            <Sparkles size={18} />
           </button>
           <button
             className="sp-btn-icon"
             onClick={() => setIsSleepTimerOpen(true)}
+            data-compact-hide
             title={
               sleepTimer.active
                 ? `Sleep timer: ${Math.floor(sleepTimer.remainingSeconds / 60)}:${(sleepTimer.remainingSeconds % 60).toString().padStart(2, '0')}`
@@ -5254,34 +5183,28 @@ export default function App() {
               <div
                 ref={fullscreenLyricsRef}
                 className="fullscreen-lyrics-scroll"
-                style={{ textAlign: lyricAlignment, scrollBehavior }}
+                style={{ textAlign: lyricAlignment }}
               >
-                {parsedLyrics.map((line, i) => {
-                  const isActive = i === activeLyricIndex
-                  const isPast = i < activeLyricIndex
-                  const anim = getLyricAnim(isActive, isPast)
-                  const animClass = `lyric-anim-${lyricAnimation}${anim.className ? ` ${anim.className}` : ''}`
-                  return (
-                    <div
-                      key={i}
-                      className={animClass}
-                      data-active={isActive}
-                      style={{
-                        fontSize: isActive ? lyricFontSize * 1.25 : lyricFontSize * 0.95,
-                        fontWeight: 900,
-                        padding: `${lyricFontSize * lyricLineGap * 0.9}px 0`,
-                        cursor: 'pointer',
-                        textTransform: lyricUppercase ? 'uppercase' : 'none',
-                        overflowWrap: 'anywhere',
-                        wordBreak: 'break-word',
-                        ...anim.style
-                      }}
-                      onClick={() => seek(line.time)}
-                    >
-                      {line.text || '• • •'}
-                    </div>
-                  )
-                })}
+                <div ref={fullscreenLyricsTrackRef} className="lyrics-track">
+                {parsedLyrics.map((line, i) => (
+                  <LyricLine
+                    key={i}
+                    line={line}
+                    isActive={i === activeLyricIndex}
+                    isPast={i < activeLyricIndex}
+                    lyricAnimation={lyricAnimation}
+                    lyricAlignment={lyricAlignment}
+                    lyricFontSize={lyricFontSize}
+                    lyricLineGap={lyricLineGap}
+                    lyricInactiveBlur={lyricInactiveBlur}
+                    lyricDimLevel={lyricDimLevel}
+                    lyricActiveScale={lyricActiveScale}
+                    lyricUppercase={lyricUppercase}
+                    variant="fullscreen"
+                    onSeek={seek}
+                  />
+                ))}
+                </div>
               </div>
             )}
           </div>
@@ -5352,8 +5275,13 @@ export default function App() {
                   onClick={(e) => handleSeekAt(e, fullscreenProgressRef)}
                 >
                   <div className="sp-scrub-bg">
-                    <div className="sp-scrub-fill" style={{ width: `${progress * 100}%` }} />
-                    <div className="sp-scrub-thumb" style={{ left: `${progress * 100}%` }} />
+                    <div className="sp-scrub-fill" style={{ transform: `scaleX(${progress})` }} />
+                    <div
+                      className="sp-scrub-thumb-rail"
+                      style={{ transform: `translateX(${progress * 100}%)` }}
+                    >
+                      <div className="sp-scrub-thumb" />
+                    </div>
                   </div>
                 </div>
                 <span className="sp-time">{formatTime(duration)}</span>

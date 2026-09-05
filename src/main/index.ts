@@ -52,6 +52,7 @@ async function initStorage(): Promise<void> {
       duration REAL,
       cover TEXT,
       lyrics TEXT,
+      lyrics_offset INTEGER DEFAULT 0,
       added_at INTEGER
     );
     CREATE TABLE IF NOT EXISTS playlists (
@@ -71,6 +72,10 @@ async function initStorage(): Promise<void> {
   `)
 
   // Migrations for existing databases
+  const trCols = db.prepare(`PRAGMA table_info(tracks)`).all() as { name: string }[]
+  const trColNames = new Set(trCols.map((c) => c.name))
+  if (!trColNames.has('lyrics_offset'))
+    db.exec(`ALTER TABLE tracks ADD COLUMN lyrics_offset INTEGER DEFAULT 0`)
   const plCols = db.prepare(`PRAGMA table_info(playlists)`).all() as { name: string }[]
   const plColNames = new Set(plCols.map((c) => c.name))
   if (!plColNames.has('cover_type')) db.exec(`ALTER TABLE playlists ADD COLUMN cover_type TEXT`)
@@ -100,8 +105,8 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
-    minWidth: 1300,
-    minHeight: 800,
+    minWidth: 860,
+    minHeight: 600,
     backgroundColor: '#080808',
     autoHideMenuBar: true,
     title: 'omus',
@@ -226,6 +231,7 @@ interface ParsedTrack {
   duration: number
   cover: string
   lyrics: string
+  lyrics_offset?: number
 }
 
 interface SavedTrack {
@@ -238,6 +244,7 @@ interface SavedTrack {
   duration: number
   cover: string
   lyrics: string
+  lyrics_offset: number
   added_at: number
 }
 
@@ -290,13 +297,14 @@ async function saveSingleTrack(t: ParsedTrack): Promise<SavedTrack | null> {
       duration: t.duration,
       cover: t.cover,
       lyrics: t.lyrics,
+      lyrics_offset: t.lyrics_offset ?? 0,
       added_at: Date.now()
     }
 
     db.prepare(
       `
-      INSERT OR REPLACE INTO tracks (id, filename, filepath, title, artist, album, duration, cover, lyrics, added_at)
-      VALUES (@id, @filename, @filepath, @title, @artist, @album, @duration, @cover, @lyrics, @added_at)
+      INSERT OR REPLACE INTO tracks (id, filename, filepath, title, artist, album, duration, cover, lyrics, lyrics_offset, added_at)
+      VALUES (@id, @filename, @filepath, @title, @artist, @album, @duration, @cover, @lyrics, @lyrics_offset, @added_at)
     `
     ).run(trackRecord)
 
@@ -440,6 +448,21 @@ ipcMain.handle(
   async (_, { trackId, lyrics }: { trackId: string; lyrics: string }) => {
     try {
       db.prepare('UPDATE tracks SET lyrics = ? WHERE id = ?').run(lyrics, trackId)
+      return true
+    } catch {
+      return false
+    }
+  }
+)
+
+ipcMain.handle(
+  'track:update-lyric-offset',
+  async (_, { trackId, offsetMs }: { trackId: string; offsetMs: number }) => {
+    try {
+      db.prepare('UPDATE tracks SET lyrics_offset = ? WHERE id = ?').run(
+        Math.round(offsetMs) || 0,
+        trackId
+      )
       return true
     } catch {
       return false

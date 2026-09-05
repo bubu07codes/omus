@@ -1,6 +1,6 @@
 {
   "name": "omus",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "the best offline music player with tons of features.",
   "main": "./out/main/index.js",
   "author": "bubu07",

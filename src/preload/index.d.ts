@@ -11,6 +11,7 @@ export interface CustomAPI {
   saveTracks: (tracks: PendingTrack[]) => Promise<Track[]>
   deleteTrack: (trackId: string) => Promise<boolean>
   updateTrackLyrics: (trackId: string, lyrics: string) => Promise<boolean>
+  updateTrackLyricOffset: (trackId: string, offsetMs: number) => Promise<boolean>
   updateTrackMetadata: (data: {
     id: string
     title?: string

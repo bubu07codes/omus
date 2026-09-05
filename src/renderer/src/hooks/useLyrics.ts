@@ -153,6 +153,7 @@ export function useLyrics() {
     setRawLyrics,
     parsedLyrics,
     offsetMs,
+    setOffsetMs,
     adjustOffset,
     resetOffset,
     getActiveLyricIndex,

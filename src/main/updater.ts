@@ -13,7 +13,6 @@ interface GitHubRelease {
   prerelease?: boolean
 }
 
-/** "v1.2.3-beta.1" → [1, 2, 3] (drops pre-release suffixes for comparison). */
 function parseVersion(v: string): number[] {
   return v
     .replace(/^v/i, '')
@@ -33,25 +32,42 @@ function isNewer(current: number[], latest: number[]): boolean {
   return false
 }
 
-/**
- * Checks the GitHub "latest release" for this repo on startup (and on manual
- * trigger). If a newer version exists, asks the user whether they want to
- * update and, if yes, opens the release page where the installer lives.
- *
- * `manual` is used by the "Check for updates" button in Settings — it reports
- * "you're up to date" / errors instead of silently doing nothing.
- */
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export async function checkForUpdates(win: BrowserWindow | null, manual = false): Promise<void> {
   try {
+    if (manual && win) {
+      win.webContents.send('update-status', { stage: 'connecting', message: 'Connecting to GitHub servers...' })
+      await delay(600)
+
+      win.webContents.send('update-status', { stage: 'fetching', message: 'Fetching latest release details...' })
+    }
+
+    const startTime = Date.now()
     const res = await net.fetch(API_URL, {
       headers: {
         'User-Agent': 'omus-updater',
         Accept: 'application/vnd.github+json'
       }
     })
+
+    if (manual && win) {
+      const elapsed = Date.now() - startTime
+      if (elapsed < 800) await delay(800 - elapsed)
+
+      win.webContents.send('update-status', { stage: 'comparing', message: 'Analyzing version metadata...' })
+      await delay(700)
+    }
+
     if (!res.ok) throw new Error(`GitHub API responded with HTTP ${res.status}`)
 
     const release = (await res.json()) as GitHubRelease
+
+    if (manual && win) {
+      win.webContents.send('update-status', { stage: 'done', message: 'Check complete.' })
+      await delay(300)
+    }
+
     if (!release.tag_name || release.draft || release.prerelease) {
       if (manual && win) {
         await dialog.showMessageBox(win, {
@@ -73,7 +89,7 @@ export async function checkForUpdates(win: BrowserWindow | null, manual = false)
           type: 'info',
           title: 'Check for Updates',
           message: "You're up to date",
-          detail: `You are running v${app.getVersion()}, which is the latest release.`
+          detail: `You are running v${app.getVersion()}, which is the latest release for omus.`
         })
       }
       return
@@ -99,6 +115,7 @@ export async function checkForUpdates(win: BrowserWindow | null, manual = false)
     }
   } catch (err) {
     if (manual && win) {
+      win.webContents.send('update-status', { stage: 'error', message: 'Failed to check for updates.' })
       await dialog.showMessageBox(win, {
         type: 'error',
         title: 'Check for Updates',
@@ -106,7 +123,5 @@ export async function checkForUpdates(win: BrowserWindow | null, manual = false)
         detail: String(err)
       })
     }
-    // On the automatic startup check, network errors are silently ignored —
-    // the app should simply open normally offline.
   }
 }

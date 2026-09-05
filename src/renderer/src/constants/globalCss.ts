@@ -55,13 +55,13 @@ export const GLOBAL_CSS = `
 
   /* Fluid Ambient Orbs */
   .fluid-bg-container {
-    position: fixed; inset: -20%; pointer-events: none;
+    position: fixed; inset: -10%; pointer-events: none;
     z-index: 0; overflow: hidden; transition: opacity 0.8s ease;
   }
   .fluid-orb { position: absolute; border-radius: 50%; background-size: cover; background-position: center; will-change: transform, opacity; }
-  .fluid-orb.orb-1 { top: 5%; left: 5%; width: 75vw; height: 75vw; }
-  .fluid-orb.orb-2 { bottom: 5%; right: 5%; width: 80vw; height: 80vw; }
-  .fluid-orb.orb-3 { top: 25%; left: 30%; width: 65vw; height: 65vw; }
+  .fluid-orb.orb-1 { top: 5%; left: 5%; width: 55vw; height: 55vw; }
+  .fluid-orb.orb-2 { bottom: 5%; right: 5%; width: 58vw; height: 58vw; }
+  .fluid-orb.orb-3 { top: 25%; left: 30%; width: 48vw; height: 48vw; }
   .fluid-scrim { position: fixed; inset: 0; pointer-events: none; z-index: 1; transition: background 0.4s ease; }
 
   /* Left Rail */
@@ -70,7 +70,6 @@ export const GLOBAL_CSS = `
     border-right: 1px solid rgba(128,128,128,0.14);
     display: flex; flex-direction: column; align-items: center;
     padding: 22px 0 110px; gap: 6px; z-index: 20; position: relative;
-    backdrop-filter: blur(16px);
   }
   .rail-logo { width: max-content; height: max-content; background: transparent; margin-bottom: 16px; transition: transform 0.8s cubic-bezier(0.34,1.56,0.64,1); cursor: pointer; display: flex; align-items: center; justify-content: center; }
   .rail-logo:hover { transform: scale(1.06) rotate(-3deg); }
@@ -93,9 +92,14 @@ export const GLOBAL_CSS = `
 
   /* Main content */
   .content {
-    flex: 1; overflow-y: auto; padding: 36px 44px 130px;
+    flex: 1; overflow-y: auto; overflow-anchor: none; padding: 36px 44px 130px;
     min-width: 0; position: relative; z-index: 10;
     animation: fadeInSlide 0.22s ease-out;
+    -webkit-font-smoothing: antialiased; text-rendering: auto;
+  }
+  .content > .view-fade {
+    max-width: 1500px;
+    margin: 0 auto;
   }
   .content-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
   .eyebrow { font-size: 12px; font-weight: 800; color: var(--text-secondary); letter-spacing: 0.8px; margin: 0 0 20px; text-transform: uppercase; }
@@ -103,7 +107,7 @@ export const GLOBAL_CSS = `
   /* Search pill */
   .search-pill { display: flex; align-items: center; gap: 10px; background: var(--card-bg);
     border: 1px solid rgba(128,128,128,0.16); border-radius: 999px; padding: 10px 16px;
-    max-width: 380px; flex: 1; min-width: 200px; transition: var(--transition); backdrop-filter: blur(10px); }
+    max-width: 380px; flex: 1; min-width: 200px; transition: var(--transition); }
   .search-pill:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(128,128,128,0.15); }
   .search-pill input { flex: 1; background: transparent; border: none; outline: none;
     color: var(--text-primary); font-size: 13.5px; font-family: var(--font); margin: 0; padding: 0; }
@@ -112,7 +116,7 @@ export const GLOBAL_CSS = `
   .search-pill svg:hover { color: var(--text-primary); }
 
   /* Segmented control */
-  .seg { display: flex; gap: 2px; background: var(--card-bg); padding: 4px; border-radius: 10px; border: 1px solid rgba(128,128,128,0.16); backdrop-filter: blur(10px); }
+  .seg { display: flex; gap: 2px; background: var(--card-bg); padding: 4px; border-radius: 10px; border: 1px solid rgba(128,128,128,0.16); }
   .seg button { background: transparent; border: none; color: var(--text-secondary); padding: 7px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: var(--font); transition: var(--transition); display: flex; align-items: center; gap: 6px; }
   .seg button[data-active="true"] { background: var(--accent); color: var(--bg); }
 
@@ -132,13 +136,22 @@ export const GLOBAL_CSS = `
   .track-row:hover .row-action { opacity: 1; }
   .row-action:hover { background: rgba(128,128,128,0.14); color: var(--text-primary); }
 
+  /* Grouped library view: drag-over + dragging states use CSS classes so the
+     per-event drag handler doesn't rebuild inline style objects for every row. */
+  .library-group-head { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 12px; cursor: grab; background: transparent; border: 1px solid rgba(128,128,128,0.14); margin-bottom: 8px; transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease; }
+  .library-group-head[data-over="true"] { background: var(--card-bg); border-color: var(--accent); }
+  .library-group-head[data-dragging="true"] { opacity: 0.5; }
+  .library-group-row { display: grid; grid-template-columns: 28px 1fr 90px; align-items: center; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; background: transparent; border: 1px solid transparent; transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease; }
+  .library-group-row[data-over="true"] { background: var(--card-bg); border-color: var(--accent); }
+  .library-group-row[data-dragging="true"] { opacity: 0.5; }
+
   [data-density="compact"] .track-row { padding: 5px 14px; font-size: 12.5px; }
   [data-density="compact"] .art-thumb { width: 28px; height: 28px; }
   [data-density="compact"] .t-sub { font-size: 11.5px; }
 
   /* Grid cards */
   .track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 18px; }
-  .track-card { cursor: pointer; background: var(--card-bg); padding: 12px; border-radius: 14px; border: 1px solid rgba(128,128,128,0.12); position: relative; transition: var(--transition); backdrop-filter: blur(10px); overflow: hidden; }
+  .track-card { cursor: pointer; background: var(--card-bg); padding: 12px; border-radius: 14px; border: 1px solid rgba(128,128,128,0.12); position: relative; transition: var(--transition); overflow: hidden; }
   .track-card:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 10px 25px -10px rgba(0,0,0,0.5); }
   .track-card:active { transform: scale(0.98); }
   .track-card .art { width: 100%; aspect-ratio: 1/1; background: rgba(128,128,128,0.14); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
@@ -284,9 +297,25 @@ export const GLOBAL_CSS = `
   .settings-row-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; color: var(--text-primary); }
   .settings-row-desc { font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
 
+  /* Settings sidebar categories */
+  .settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; max-width: 980px; margin: 0 auto; }
+  .settings-page-title { font-size: 26px; font-weight: 900; letter-spacing: -0.4px; margin: 0 0 18px; }
+  .settings-nav { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 2px; padding: 8px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.14); border-radius: 14px; }
+  .settings-nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 9px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 700; font-family: var(--font); cursor: pointer; text-align: left; transition: var(--transition); }
+  .settings-nav-btn:hover { color: var(--text-primary); background: rgba(128,128,128,0.1); }
+  .settings-nav-btn[data-active="true"] { color: var(--accent); background: rgba(128,128,128,0.12); }
+  .settings-nav-btn svg { flex-shrink: 0; }
+  .settings-content { min-width: 0; }
+  .settings-cat { scroll-margin-top: 12px; }
+  @media (max-width: 900px) {
+    .settings-layout { grid-template-columns: 1fr; }
+    .settings-nav { position: static; flex-direction: row; overflow-x: auto; gap: 4px; }
+    .settings-nav-btn { width: auto; white-space: nowrap; }
+  }
+
   /* Theme & anim cards */
   .theme-grid, .anim-grid, .font-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-  .theme-card { padding: 16px; border-radius: 14px; cursor: pointer; text-align: left; border: 1px solid rgba(128,128,128,0.16); font-family: var(--font); transition: var(--transition); backdrop-filter: blur(10px); }
+  .theme-card { padding: 16px; border-radius: 14px; cursor: pointer; text-align: left; border: 1px solid rgba(128,128,128,0.16); font-family: var(--font); transition: var(--transition); }
   .theme-card:hover { transform: translateY(-2px); }
   .theme-dots { display: flex; gap: 6px; margin-top: 10px; }
   .theme-dot { width: 15px; height: 15px; border-radius: 50%; }
@@ -298,14 +327,13 @@ export const GLOBAL_CSS = `
   /* Bottom player bar */
   .spotify-player {
     position: fixed; bottom: 0; left: 0; right: 0; height: 92px;
-    background: var(--sidebar-bg); backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    background: var(--sidebar-bg);
     border-top: 1px solid rgba(128,128,128,0.16);
-    display: grid; grid-template-columns: 300px 1fr 300px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center; padding: 0 24px; z-index: 100; user-select: none;
     box-shadow: 0 -10px 40px rgba(0,0,0,0.35); transition: background 0.3s ease;
   }
-  .sp-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .sp-left { display: flex; align-items: center; gap: 14px; min-width: 0; justify-self: start; }
   .sp-cover-wrap { position: relative; width: 56px; height: 56px; border-radius: 8px; overflow: hidden;
     background: var(--card-bg); flex-shrink: 0; box-shadow: 0 4px 14px rgba(0,0,0,0.3);
     cursor: pointer; border: 1px solid rgba(128,128,128,0.14); }
@@ -321,7 +349,7 @@ export const GLOBAL_CSS = `
   .sp-heart-btn { background: transparent; border: none; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 50%; transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1); }
   .sp-heart-btn:hover { color: var(--accent); transform: scale(1.15); }
   .sp-heart-btn.liked { color: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
-  .sp-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; max-width: 600px; width: 100%; margin: 0 auto; }
+  .sp-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: clamp(320px, 34vw, 600px); max-width: 600px; padding: 0 16px; }
   .sp-controls { display: flex; align-items: center; gap: 16px; }
   .sp-btn-icon { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 7px; border-radius: 50%; position: relative; transition: var(--transition); }
   .sp-btn-icon:hover { color: var(--text-primary); transform: scale(1.08); }
@@ -336,15 +364,16 @@ export const GLOBAL_CSS = `
   .sp-scrub-track { position: relative; flex: 1; height: 14px; display: flex; align-items: center; cursor: pointer; }
   .sp-scrub-bg { width: 100%; height: 4px; border-radius: 4px; background: rgba(128,128,128,0.24); position: relative; overflow: visible; transition: height 0.15s ease; }
   .sp-scrub-track:hover .sp-scrub-bg { height: 6px; }
-  .sp-scrub-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 4px; transition: width 0.08s linear; }
-  .sp-scrub-thumb { position: absolute; top: 50%; transform: translate(-50%,-50%) scale(0); width: 12px; height: 12px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1); }
+  .sp-scrub-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--accent); border-radius: 4px; transform: scaleX(0); transform-origin: left center; will-change: transform; transition: transform 0.08s linear; }
+  .sp-scrub-thumb-rail { position: absolute; inset: 0; pointer-events: none; transform: translateX(0); will-change: transform; }
+  .sp-scrub-thumb { position: absolute; left: 0; top: 50%; transform: translate(-50%,-50%) scale(0); width: 12px; height: 12px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1); }
   .sp-scrub-track:hover .sp-scrub-thumb { transform: translate(-50%,-50%) scale(1); }
   .sp-scrub-tooltip { position: absolute; bottom: 22px; transform: translateX(-50%); background: var(--card-bg); border: 1px solid rgba(128,128,128,0.24); color: var(--text-primary); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
-  .sp-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .sp-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; justify-self: end; }
   .sp-btn-lyrics { display: flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.18); color: var(--text-secondary); font-size: 12px; font-weight: 800; cursor: pointer; font-family: var(--font); transition: var(--transition); }
   .sp-btn-lyrics:hover { color: var(--text-primary); border-color: var(--accent); transform: translateY(-1px); }
   .sp-btn-lyrics[data-active="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-  .sp-vol-group { display: flex; align-items: center; gap: 8px; margin-left: 6px; }
+  .sp-vol-group { display: flex; align-items: center; gap: 8px; margin-left: 6px; position: relative; }
   .sp-vol-slider { width: 90px; height: 4px; border-radius: 2px; appearance: none; -webkit-appearance: none; background: rgba(128,128,128,0.24); outline: none; cursor: pointer; }
   .sp-vol-slider::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--text-primary); cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.4); transition: transform 0.15s ease; }
   .sp-vol-slider:hover::-webkit-slider-thumb { transform: scale(1.2); background: var(--accent); }
@@ -354,7 +383,7 @@ export const GLOBAL_CSS = `
 
   /* Playlists */
   .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 18px; }
-  .pl-card { cursor: pointer; background: var(--card-bg); padding: 14px 14px 12px; border-radius: 14px; border: 1px solid rgba(128,128,128,0.12); transition: var(--transition); position: relative; backdrop-filter: blur(10px); overflow: hidden; }
+  .pl-card { cursor: pointer; background: var(--card-bg); padding: 14px 14px 12px; border-radius: 14px; border: 1px solid rgba(128,128,128,0.12); transition: var(--transition); position: relative; overflow: hidden; }
   .pl-card:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 10px 25px -10px rgba(0,0,0,0.5); }
   .pl-card:active { transform: scale(0.98); }
   .pl-card-cover { width: 100%; aspect-ratio: 1/1; border-radius: 10px; overflow: hidden; margin-bottom: 12px; position: relative; background: rgba(128,128,128,0.14); }
@@ -411,7 +440,7 @@ export const GLOBAL_CSS = `
   .add-check.on { background: var(--accent); border-color: var(--accent); }
 
   /* Queue */
-  .queue-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.1); margin-bottom: 8px; transition: var(--transition); backdrop-filter: blur(10px); }
+  .queue-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.1); margin-bottom: 8px; transition: var(--transition); }
   .queue-card:hover { border-color: rgba(128,128,128,0.25); }
   .queue-card[data-active="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
   .queue-actions { display: flex; align-items: center; gap: 6px; }
@@ -422,7 +451,12 @@ export const GLOBAL_CSS = `
   /* Lyrics */
   .lyrics-container-view { height: 100%; display: flex; flex-direction: column; position: relative; z-index: 10; }
   .lyrics-header-clean { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; margin-bottom: 12px; border-bottom: 1px solid rgba(128,128,128,0.14); flex-wrap: wrap; gap: 12px; }
-  .lyrics-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 30px 20px 48vh; scrollbar-gutter: stable; mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 4%, black 96%, transparent 100%); }
+  /* The viewport clips + fades the lyrics; the inner .lyrics-track is what
+     actually glides (GPU transform) so line changes are buttery smooth and the
+     first/last lines always stay fully visible (dynamic padding keeps them out
+     of the fade mask). */
+  .lyrics-scroll { flex: 1; overflow: hidden; overflow-x: hidden; padding: 0 20px; position: relative; mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); }
+  .lyrics-track { position: relative; will-change: transform; transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1); }
   /* Lyrics animation modes */
   /* Compositor-friendly only (transform/opacity) + cheap text-shadow/color.
      NEVER transition filter: blur() — it re-rasterizes the whole line per
@@ -447,6 +481,8 @@ export const GLOBAL_CSS = `
     50% { transform: translateY(-6px); }
   }
   .lyrics-offset-badge { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(128,128,128,0.14); color: var(--text-secondary); cursor: default; }
+  .lyrics-options-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 2px 8px 10px; }
+  .lyrics-options-row .lyrics-offset-badge { min-width: 70px; text-align: center; }
 
   /* Modals */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.72); backdrop-filter: blur(12px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 32px; animation: fadeIn 0.15s ease; }
@@ -488,7 +524,7 @@ export const GLOBAL_CSS = `
     to { opacity: 1; transform: scale(1) rotate(0deg); }
   }
   .now-playing-enter { animation: nowPlayingEnter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .fullscreen-lyrics-scroll { height: 100%; min-width: 0; min-height: 0; max-height: 100%; align-self: stretch; justify-self: stretch; overflow-y: auto; overflow-x: hidden; padding: 100px 24px 48vh 0; scrollbar-gutter: stable; overscroll-behavior: contain; mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%); }
+  .fullscreen-lyrics-scroll { height: 100%; min-width: 0; min-height: 0; max-height: 100%; align-self: stretch; justify-self: stretch; overflow: hidden; overflow-x: hidden; padding: 0 24px 0 0; scrollbar-gutter: stable; overscroll-behavior: contain; mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); }
   .fullscreen-lyrics-empty { color: var(--text-secondary); opacity: 0.85; font-size: 17px; line-height: 1.5; max-width: 420px; min-height: 240px; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; margin: 0 auto; }
   .fullscreen-controls-bar { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(128,128,128,0.14); gap: 20px; }
   .lyrics-preview-box { background: var(--card-bg); border: 1px solid rgba(128,128,128,0.18); border-radius: 14px; padding: 24px; margin-top: 16px; overflow: hidden; position: relative; }
@@ -534,11 +570,13 @@ export const GLOBAL_CSS = `
     grid-template-columns: repeat(6, minmax(0, 1fr));
     grid-auto-flow: dense;
     gap: 20px;
+    max-width: 1500px;
+    margin: 0 auto;
   }
 
   /* Bento Tile Base */
   .home-tile {
-    background: color-mix(in srgb, var(--card-bg) 85%, transparent);
+    background: color-mix(in srgb, var(--card-bg) 95%, transparent);
     border: 1px solid rgba(128,128,128,0.14);
     border-radius: 18px;
     padding: 20px;
@@ -549,8 +587,6 @@ export const GLOBAL_CSS = `
     min-height: 0;
     display: flex;
     flex-direction: column;
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
     box-shadow: 0 8px 24px -4px rgba(0,0,0,0.25);
     transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s cubic-bezier(0.16,1,0.3,1);
   }
@@ -1086,6 +1122,13 @@ export const GLOBAL_CSS = `
     .tile-hero-art { width: 180px; height: 180px; }
   }
 
+  /* Very large windows: the content/home-grid are already capped at 1500px, so
+     keep the hero + inner tile artwork comfortably sized instead of ballooning. */
+  @media (min-width: 1500px) {
+    .tile-hero-art { width: 200px; height: 200px; }
+    .tile-album-art, .tile-most-art { max-width: 220px; margin: 0 auto; }
+  }
+
   /* Medium screens (860px - 1199px): 4-column balanced bento grid */
   @media (max-width: 1199px) {
     .home-grid {
@@ -1108,8 +1151,46 @@ export const GLOBAL_CSS = `
     .tile-pl { grid-column: span 2; }
   }
 
-  /* Tablet / Compact screens (<= 860px): Reflows cleanly into mobile-friendly layout */
-  @media (max-width: 860px) {
+  /* Compact windows (<= 1400px): make the bottom player bar fit comfortably.
+     The big "Lyrics" pill collapses to a plain round icon button (the same
+     treatment as its transport neighbors) and the least-essential right-side
+     extras — mini visualizer, fluid background, sleep timer — drop out via
+     [data-compact-hide] so the bar never overflows into the scrubber. The
+     transport cluster stays perfectly centered at every width because the two
+     outer grid tracks are equal (minmax(0,1fr) and the middle track is
+     content-sized. The wide volume slider collapses to a vertical popover that
+     appears on hover above the mute icon. */
+  @media (max-width: 1400px) {
+    .spotify-player { padding: 0 14px; }
+    .sp-btn-lyrics { width: 32px; height: 32px; padding: 0; border-radius: 50%; justify-content: center; gap: 0; }
+    .sp-btn-lyrics .lbl { display: none; }
+    .sp-vol-group .sp-vol-slider {
+      position: absolute; left: 50%; bottom: calc(100% + 12px);
+      transform: translateX(-50%);
+      width: 4px; height: 90px;
+      background: rgba(128,128,128,0.24);
+      padding: 18px 6px;
+      border-radius: 6px;
+      writing-mode: vertical-lr; direction: rtl;
+      appearance: none; -webkit-appearance: none;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.16s ease;
+    }
+    .sp-vol-group:hover .sp-vol-slider {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    /* Bridge so the popover doesn't vanish while moving the cursor toward it. */
+    .sp-vol-group::after {
+      content: ''; position: absolute; bottom: 100%; left: 50%;
+      transform: translateX(-50%); width: 100%; height: 12px;
+    }
+    [data-compact-hide] { display: none !important; }
+    .content { padding: 30px 28px 132px; }
+  }
+
+  /* Tablet / Compact screens (<= 1300px): Reflows cleanly into mobile-friendly layout */
+  @media (max-width: 1300px) {
     .home-grid {
       grid-template-columns: 1fr;
       gap: 14px;
@@ -1126,8 +1207,11 @@ export const GLOBAL_CSS = `
     }
     .tile-hero-art { width: 140px; height: 140px; }
     .tile-hero-ambient { display: none; }
-    .spotify-player { grid-template-columns: 200px 1fr 180px; padding: 0 16px; }
+    .spotify-player { padding: 0 10px; }
+    .sp-actions-left { display: none; }
+    .sp-title { font-size: 13px; }
     .sp-btn-lyrics .lbl { display: none; }
+    .content { padding: 20px 16px 132px; }
     .fullscreen-body { grid-template-columns: 1fr; gap: 24px; }
     .fullscreen-cover-wrap { max-width: 240px; margin-bottom: 12px; }
     .fullscreen-video-wrap { max-width: 320px; margin-bottom: 12px; }
@@ -1139,7 +1223,8 @@ export const GLOBAL_CSS = `
     .rail-btn .lbl { display: none; }
     .content { padding: 16px 14px 120px; }
     .home-header { margin-bottom: 16px; }
-    .spotify-player { grid-template-columns: 140px 1fr 90px; padding: 0 12px; }
+    .spotify-player { padding: 0 12px; }
+    .sp-center { width: clamp(260px, 46vw, 600px); }
     .sp-vol-slider { display: none; }
   }
 
@@ -1147,9 +1232,7 @@ export const GLOBAL_CSS = `
   .title-bar {
     position: fixed; top: 0; left: 0; right: 0; height: var(--titlebar-h, 0px);
     z-index: 100000; display: flex; align-items: center; justify-content: space-between;
-    background: color-mix(in srgb, var(--sidebar-bg) 45%, transparent);
-    backdrop-filter: blur(18px) saturate(160%);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    background: color-mix(in srgb, var(--sidebar-bg) 96%, transparent);
     border-bottom: 1px solid rgba(128,128,128,0.14);
     -webkit-app-region: drag; user-select: none; flex-shrink: 0; overflow: hidden;
   }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, memo } from 'react'
 import { VisualizerMode } from '../../types'
 
 interface AudioVisualizerProps {
@@ -12,7 +12,7 @@ interface AudioVisualizerProps {
   barCount?: number
 }
 
-export function AudioVisualizer({
+export const AudioVisualizer = memo(function AudioVisualizer({
   analyserNode,
   isPlaying,
   mode = 'bars',
@@ -179,4 +179,4 @@ export function AudioVisualizer({
       style={{ display: 'block', pointerEvents: 'none' }}
     />
   )
-}
+})

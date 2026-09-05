@@ -1,53 +1,92 @@
 import React from 'react'
-import { Home, Library, ListMusic, ListOrdered, Mic2, Settings } from 'lucide-react'
+import { Home, Library, ListMusic, Mic2, Settings } from 'lucide-react'
 import { GoogleFontPreset, Theme, AnimationPreset } from '../types'
 
 export const PRESET_FONTS: GoogleFontPreset[] = [
   { name: 'Original', family: 'Plus Jakarta Sans' },
-  { name: 'Inter', family: 'Inter' },
   { name: 'Techno', family: 'Space Grotesk' }
 ]
 
 export const PRESET_THEMES: Theme[] = [
   {
     id: 'dark',
-    name: 'OLED Dark',
-    bg: '#080808',
-    sidebarBg: '#000000',
-    cardBg: '#111111',
-    textPrimary: '#ffffff',
+    name: 'OLED',
+    bg: '#000000',
+    sidebarBg: '#050505',
+    cardBg: '#121212',
+    textPrimary: '#f4f4f5',
     textSecondary: '#a1a1aa',
     accent: '#ffffff'
   },
   {
+    id: 'amber',
+    name: 'Amber',
+    bg: '#120d06',
+    sidebarBg: '#0a0703',
+    cardBg: '#1f170b',
+    textPrimary: '#fffbeb',
+    textSecondary: '#d97706',
+    accent: '#f59e0b'
+  },
+  {
+    id: 'crimson',
+    name: 'Red',
+    bg: '#120606',
+    sidebarBg: '#080202',
+    cardBg: '#210c0d',
+    textPrimary: '#fef2f2',
+    textSecondary: '#f87171',
+    accent: '#ef4444'
+  },
+  {
     id: 'midnight',
-    name: 'Midnight Blue',
-    bg: '#0a0d14',
-    sidebarBg: '#05070a',
-    cardBg: '#121724',
-    textPrimary: '#f1f5f9',
+    name: 'Midnight',
+    bg: '#0b0f19',
+    sidebarBg: '#070a12',
+    cardBg: '#111827',
+    textPrimary: '#f8fafc',
     textSecondary: '#94a3b8',
     accent: '#38bdf8'
   },
   {
     id: 'nord',
-    name: 'Nord Frost',
+    name: 'Nord',
     bg: '#2e3440',
     sidebarBg: '#242933',
     cardBg: '#3b4252',
-    textPrimary: '#f8fafc',
-    textSecondary: '#cbd5e1',
+    textPrimary: '#eceff4',
+    textSecondary: '#d8dee9',
     accent: '#88c0d0'
   },
   {
-    id: 'solarized',
-    name: 'Solarized Dark',
-    bg: '#002b36',
-    sidebarBg: '#00202a',
-    cardBg: '#073642',
-    textPrimary: '#fdf6e3',
-    textSecondary: '#93a1a1',
-    accent: '#b58900'
+    id: 'gruvbox',
+    name: 'Gruvbox',
+    bg: '#282828',
+    sidebarBg: '#1d2021',
+    cardBg: '#3c3836',
+    textPrimary: '#fbf1c7',
+    textSecondary: '#a89984',
+    accent: '#fabd2f'
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    bg: '#0a100d',
+    sidebarBg: '#060a08',
+    cardBg: '#131f19',
+    textPrimary: '#f0fdf4',
+    textSecondary: '#86efac',
+    accent: '#10b981'
+  },
+  {
+    id: 'cyberpunk',
+    name: 'Neon',
+    bg: '#090d16',
+    sidebarBg: '#04060a',
+    cardBg: '#111a2e',
+    textPrimary: '#ffffff',
+    textSecondary: '#38bdf8',
+    accent: '#f43f5e'
   },
   {
     id: 'dracula',
@@ -56,58 +95,38 @@ export const PRESET_THEMES: Theme[] = [
     sidebarBg: '#21222c',
     cardBg: '#343746',
     textPrimary: '#f8f8f2',
-    textSecondary: '#c0caf5',
+    textSecondary: '#6272a4',
     accent: '#bd93f9'
   },
   {
-    id: 'gruvbox',
-    name: 'Gruvbox Dark',
-    bg: '#282828',
-    sidebarBg: '#1d2021',
-    cardBg: '#3c3836',
-    textPrimary: '#fbf1c7',
-    textSecondary: '#d5c4a1',
-    accent: '#d79921'
-  },
-  {
-    id: 'forest',
-    name: 'Forest',
-    bg: '#0f1a12',
-    sidebarBg: '#0a120b',
-    cardBg: '#16251a',
-    textPrimary: '#f0fdf4',
-    textSecondary: '#bbf7d0',
-    accent: '#22c55e'
-  },
-  {
-    id: 'rosepine',
-    name: 'Rose Pine',
-    bg: '#191724',
-    sidebarBg: '#121016',
-    cardBg: '#26233a',
-    textPrimary: '#ffffff',
-    textSecondary: '#c4a7e7',
-    accent: '#eb6bc9'
-  },
-  {
     id: 'ocean',
-    name: 'Ocean Breeze',
-    bg: '#0b1e2d',
-    sidebarBg: '#071420',
-    cardBg: '#122a3d',
+    name: 'Ocean',
+    bg: '#08141e',
+    sidebarBg: '#050d14',
+    cardBg: '#0f2334',
     textPrimary: '#f0f9ff',
-    textSecondary: '#bae6fd',
-    accent: '#22d3ee'
+    textSecondary: '#7dd3fc',
+    accent: '#06b6d4'
+  },
+  {
+    id: 'monochrome',
+    name: 'Concrete',
+    bg: '#18181b',
+    sidebarBg: '#09090b',
+    cardBg: '#27272a',
+    textPrimary: '#fafafa',
+    textSecondary: '#a1a1aa',
+    accent: '#e4e4e7'
   },
   {
     id: 'paper',
-    name: 'Paper Light',
-    bg: '#f8f8f6',
-    sidebarBg: '#ffffff',
-    cardBg: '#ededeb',
-    textPrimary: '#0f172a',
-    textSecondary: '#475569',
-    accent: '#0f172a'
+    name: 'Light',
+    bg: '#f4f4f0',
+    sidebarBg: '#eaeaea',
+    cardBg: '#ffffff',
+    textPrimary: '#1c1917',
+    textSecondary: '#78716c',
+    accent: '#2563eb'
   }
 ]
 
@@ -115,12 +134,11 @@ export const PRESET_THEMES: Theme[] = [
 // distorting delicate controls (titlebar, left rail, segmented tabs, player controls, switches, cards).
 const BTN_ANIM_SEL =
   'button:not(.title-bar-btn):not(.rail-btn):not(.sp-btn-icon):not(.sp-play-btn):not(.sp-heart-btn):not(.seg button):not(.switch-label):not(.home-tile):not(.row-action):not(.queue-btn):not(.pl-opt-row):not(.no-anim)'
-
 export const PRESET_ANIMATIONS: AnimationPreset[] = [
   {
     id: 'off',
     name: 'Off',
-    tagline: 'Disable all animations & transitions',
+    tagline: 'No motion',
     uiTransition: 'none',
     scrollBehavior: 'auto',
     globalCss: `
@@ -128,33 +146,9 @@ export const PRESET_ANIMATIONS: AnimationPreset[] = [
   `
   },
   {
-    id: 'modern',
-    name: 'Modern',
-    tagline: 'Clean, fast and understated',
-    uiTransition: 'all 0.16s ease',
-    scrollBehavior: 'smooth',
-    globalCss: `
-    [data-anim="modern"] ${BTN_ANIM_SEL}:hover { filter: brightness(1.08); transform: translateY(-1px); }
-    [data-anim="modern"] ${BTN_ANIM_SEL}:active { filter: brightness(0.95); transform: translateY(0); }
-  `
-  },
-  {
-    id: 'playful',
-    name: 'Playful',
-    tagline: 'Bouncy, springy and fun',
-    uiTransition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-    scrollBehavior: 'smooth',
-    globalCss: `
-    [data-anim="playful"] ${BTN_ANIM_SEL}:hover { transform: translateY(-2px) scale(1.03); }
-    [data-anim="playful"] ${BTN_ANIM_SEL}:active { transform: scale(0.94) translateY(1px); }
-    [data-anim="playful"] .track-row:hover { transform: scale(1.008); }
-    [data-anim="playful"] .track-card:hover, [data-anim="playful"] .pl-card:hover { transform: translateY(-4px) scale(1.02); }
-  `
-  },
-  {
     id: 'subtle',
     name: 'Subtle',
-    tagline: 'Light and slight motion',
+    tagline: 'Minimal feedback',
     uiTransition: 'all 0.12s ease-out',
     scrollBehavior: 'smooth',
     globalCss: `
@@ -163,10 +157,21 @@ export const PRESET_ANIMATIONS: AnimationPreset[] = [
   `
   },
   {
+    id: 'modern',
+    name: 'Snappy',
+    tagline: 'Fast and tight',
+    uiTransition: 'all 0.15s cubic-bezier(0.2, 0, 0, 1)',
+    scrollBehavior: 'smooth',
+    globalCss: `
+    [data-anim="modern"] ${BTN_ANIM_SEL}:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    [data-anim="modern"] ${BTN_ANIM_SEL}:active { filter: brightness(0.95); transform: translateY(0); }
+  `
+  },
+  {
     id: 'smooth',
     name: 'Smooth',
-    tagline: 'Gentle, even and fluid easing',
-    uiTransition: 'all 0.3s ease',
+    tagline: 'Fluid and balanced',
+    uiTransition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
     scrollBehavior: 'smooth',
     globalCss: `
     [data-anim="smooth"] ${BTN_ANIM_SEL}:hover { filter: brightness(1.07); transform: translateY(-1px); }
@@ -174,25 +179,27 @@ export const PRESET_ANIMATIONS: AnimationPreset[] = [
   `
   },
   {
-    id: 'elastic',
-    name: 'Elastic',
-    tagline: 'Springy overshoot motion',
-    uiTransition: 'all 0.25s cubic-bezier(0.68, -0.55, 0.27, 1.55)',
+    id: 'playful',
+    name: 'Spring',
+    tagline: 'Bouncy overshoot',
+    uiTransition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
     scrollBehavior: 'smooth',
     globalCss: `
-    [data-anim="elastic"] ${BTN_ANIM_SEL}:hover { transform: translateY(-2px) scale(1.03); }
-    [data-anim="elastic"] ${BTN_ANIM_SEL}:active { transform: scale(0.94) translateY(1px); }
+    [data-anim="playful"] ${BTN_ANIM_SEL}:hover { transform: translateY(-2px) scale(1.02); }
+    [data-anim="playful"] ${BTN_ANIM_SEL}:active { transform: scale(0.96) translateY(1px); }
+    [data-anim="playful"] .track-row:hover { transform: scale(1.004); }
+    [data-anim="playful"] .track-card:hover, [data-anim="playful"] .pl-card:hover { transform: translateY(-3px) scale(1.01); }
   `
   },
   {
     id: 'glow',
-    name: 'Glow Pulse',
-    tagline: 'Glow animations on hover',
-    uiTransition: 'all 0.25s ease',
+    name: 'Glow',
+    tagline: 'Accent light on hover',
+    uiTransition: 'all 0.2s ease',
     scrollBehavior: 'smooth',
     globalCss: `
-    [data-anim="glow"] ${BTN_ANIM_SEL}:hover { box-shadow: 0 0 10px var(--accent); transform: translateY(-1px); }
-    [data-anim="glow"] .track-row[data-active="true"] { box-shadow: inset 0 0 10px var(--accent); }
+    [data-anim="glow"] ${BTN_ANIM_SEL}:hover { box-shadow: 0 0 12px var(--accent-alpha, rgba(255,255,255,0.15)); transform: translateY(-1px); }
+    [data-anim="glow"] .track-row[data-active="true"] { box-shadow: inset 2px 0 0 var(--accent); }
   `
   }
 ]
@@ -205,7 +212,7 @@ export const NAV_ITEMS: {
   { id: 'home', label: 'Home', IconComp: Home },
   { id: 'library', label: 'Library', IconComp: Library },
   { id: 'playlists', label: 'Playlists', IconComp: ListMusic },
-  { id: 'queue', label: 'Queue', IconComp: ListOrdered },
+  { id: 'queue', label: 'Queue', IconComp: ListMusic },
   { id: 'lyrics', label: 'Lyrics', IconComp: Mic2 },
   { id: 'settings', label: 'Settings', IconComp: Settings }
 ]

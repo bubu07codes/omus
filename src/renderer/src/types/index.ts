@@ -7,6 +7,7 @@ export interface Track {
   duration: number
   cover: string
   lyrics: string
+  lyrics_offset?: number
   added_at?: number
 }
 

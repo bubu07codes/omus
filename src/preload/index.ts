@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
   deleteTrack: (trackId: string) => ipcRenderer.invoke('library:delete-track', trackId),
   updateTrackLyrics: (trackId: string, lyrics: string) =>
     ipcRenderer.invoke('library:update-track-lyrics', { trackId, lyrics }),
+  updateTrackLyricOffset: (trackId: string, offsetMs: number) =>
+    ipcRenderer.invoke('track:update-lyric-offset', { trackId, offsetMs }),
   updateTrackMetadata: (data: {
     id: string
     title?: string
