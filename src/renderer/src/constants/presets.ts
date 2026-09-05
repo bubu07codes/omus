@@ -1,5 +1,5 @@
 import React from 'react'
-import { Home, Library, ListMusic, Mic2, Settings } from 'lucide-react'
+import { Home, Library, ListMusic, ListOrdered, Mic2, Settings } from 'lucide-react'
 import { GoogleFontPreset, Theme, AnimationPreset } from '../types'
 
 export const PRESET_FONTS: GoogleFontPreset[] = [
@@ -212,7 +212,7 @@ export const NAV_ITEMS: {
   { id: 'home', label: 'Home', IconComp: Home },
   { id: 'library', label: 'Library', IconComp: Library },
   { id: 'playlists', label: 'Playlists', IconComp: ListMusic },
-  { id: 'queue', label: 'Queue', IconComp: ListMusic },
+  { id: 'queue', label: 'Queue', IconComp: ListOrdered },
   { id: 'lyrics', label: 'Lyrics', IconComp: Mic2 },
   { id: 'settings', label: 'Settings', IconComp: Settings }
 ]
