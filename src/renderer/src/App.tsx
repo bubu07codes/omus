@@ -4759,7 +4759,7 @@ export default function App() {
                   ['Shift + ← / →', 'Prev / Next Track'],
                   ['Q', 'Toggle Queue'],
                   ['M', 'Toggle Mute'],
-                  ['F', 'Fullscreen Now Playing'],
+                  ['F', 'Toggle Fullscreen View'],
                   ['E', 'Equalizer'],
                   ['Esc', 'Close Overlays'],
                   ['Ctrl + Scroll', 'Zoom UI']
