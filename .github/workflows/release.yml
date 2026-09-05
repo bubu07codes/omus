@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: windows-latest
@@ -22,7 +25,14 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Build and Publish Electron App
+      - name: Build Electron App
+        run: npm run build:win -- -c.publish=never
+
+      - name: Publish Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/install-omus.exe
+            dist/install-omus.exe.blockmap
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build:win -- --publish always
