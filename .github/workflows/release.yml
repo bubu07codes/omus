@@ -26,7 +26,7 @@ jobs:
         run: npm ci
 
       - name: Build Electron App
-        run: npm run build:win -- -c.publish=never
+        run: npm run build && npx electron-builder --win --publish never
 
       - name: Publish Release Assets
         uses: softprops/action-gh-release@v2
