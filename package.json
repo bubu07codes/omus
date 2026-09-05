@@ -69,7 +69,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "bubu07codes ",
+        "owner": "bubu07codes",
         "repo": "omus",
         "releaseType": "draft"
       }
