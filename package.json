@@ -63,6 +63,9 @@
     "directories": {
       "output": "dist"
     },
+    "win": {
+      "artifactName": "install-omus.${ext}"
+    },
     "publish": [
       {
         "provider": "github",
