@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>omus — your music, offline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070709;
+    --border: #1e1e24;
+    --text: #f4f4f5;
+    --muted: #a1a1aa;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Animated Ambient Fluid Background Orbs */
+  .bg-glow {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.22;
+    animation: floatFluid 18s ease-in-out infinite alternate;
+  }
+
+  .orb-1 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, #6366f1 0%, rgba(99, 102, 241, 0) 70%);
+    top: -10%;
+    left: -10%;
+  }
+
+  .orb-2 {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, #a855f7 0%, rgba(168, 85, 247, 0) 70%);
+    bottom: 10%;
+    right: -15%;
+    animation-delay: -5s;
+    animation-duration: 22s;
+  }
+
+  .orb-3 {
+    width: 450px;
+    height: 450px;
+    background: radial-gradient(circle, #3b82f6 0%, rgba(59, 130, 246, 0) 70%);
+    top: 40%;
+    left: 30%;
+    animation-delay: -10s;
+    animation-duration: 25s;
+  }
+
+  @keyframes floatFluid {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(60px, 80px) scale(1.15); }
+    100% { transform: translate(-40px, 40px) scale(0.9); }
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 0 24px;
+    position: relative;
+  }
+
+  .brand {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+  }
+
+  .brand-icon {
+    height: 90px;
+    width: auto;
+    object-fit: contain;
+    transition: transform 0.3s ease;
+    filter: drop-shadow(0 0 25px rgba(255, 255, 255, 0.15));
+  }
+
+  .brand-icon:hover {
+    transform: scale(1.04);
+  }
+
+  nav {
+    position: absolute;
+    right: 0;
+    display: flex;
+    gap: 24px;
+  }
+  
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: color 0.15s ease;
+  }
+  nav a:hover { color: var(--text); }
+
+  /* Hero Section */
+  .hero {
+    padding: 48px 0 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 32px;
+  }
+
+  .hero-text h1 {
+    font-size: clamp(38px, 5vw, 60px);
+    font-weight: 800;
+    letter-spacing: -1.8px;
+    line-height: 1.05;
+    margin-bottom: 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-text p {
+    color: var(--muted);
+    font-size: 18px;
+    max-width: 520px;
+  }
+
+  .cta-group { display: flex; gap: 12px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-primary {
+    background: var(--text);
+    color: var(--bg);
+    box-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(255, 255, 255, 0.25); }
+
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+  }
+  .btn-secondary:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-2px); }
+
+  /* Interactive Floating Layout Stage */
+  .showcase-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin: 40px 0 100px;
+    perspective: 1200px;
+  }
+
+  .top-row {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .float-slot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .float-slot img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.85));
+    border-radius: 14px;
+  }
+
+  /* Top 2 Items */
+  .top-row .float-slot:first-child { flex: 2; }
+  .top-row .float-slot:last-child { flex: 1; }
+
+  .rotate-left {
+    animation: floatRotateLeft 7s ease-in-out infinite;
+  }
+
+  .rotate-right {
+    animation: floatRotateRight 8s ease-in-out infinite;
+  }
+
+  /* Bottom Main Showcase */
+  .main-showcase {
+    width: 100%;
+    margin-top: -20px;
+    z-index: 2;
+    animation: floatMain 9s ease-in-out infinite;
+  }
+
+  /* Smooth Floating Sequences */
+  @keyframes floatRotateLeft {
+    0% { transform: translateY(0px) rotate(-3.5deg) rotateX(3deg); }
+    50% { transform: translateY(-16px) rotate(-1.5deg) rotateX(1deg); }
+    100% { transform: translateY(0px) rotate(-3.5deg) rotateX(3deg); }
+  }
+
+  @keyframes floatRotateRight {
+    0% { transform: translateY(0px) rotate(4deg) rotateX(3deg); }
+    50% { transform: translateY(-18px) rotate(2deg) rotateX(1deg); }
+    100% { transform: translateY(0px) rotate(4deg) rotateX(3deg); }
+  }
+
+  @keyframes floatMain {
+    0% { transform: translateY(0px) scale(1); }
+    50% { transform: translateY(-12px) scale(1.01); }
+    100% { transform: translateY(0px) scale(1); }
+  }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  @media (max-width: 900px) {
+    header { justify-content: flex-start; }
+    nav { position: static; }
+    .top-row { flex-direction: column; }
+    .main-showcase { margin-top: 0; }
+    .rotate-left, .rotate-right { animation: floatMain 6s ease-in-out infinite; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Fluid Background Canvas Orbs -->
+<div class="bg-glow">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="container">
+  <header>
+    <a href="#" class="brand">
+      <img src="https://raw.githubusercontent.com/bubu07codes/omus/refs/heads/master/src/renderer/public/logo.svg" alt="omus" class="brand-icon" onerror="this.style.display='none'" />
+    </a>
+  </header>
+
+  <section class="hero">
+    <div class="hero-text">
+      <h1>Stream music offline.<br/>Simply.</h1>
+      <p>
+        A fast and fun local music streaming desktop app.
+        <span style="display: block;">No tracking, no bloat, no heavy usage.</span>
+      </p>
+    </div>
+    <div class="cta-group">
+      <a class="btn btn-primary" href="https://github.com/bubu07codes/omus/releases/latest/download/install-omus.exe">
+        Download for Windows
+      </a>
+      <a class="btn btn-secondary" href="https://github.com/bubu07codes/omus" target="_blank">
+        Source Code
+      </a>
+    </div>
+  </section>
+
+  <section id="features" class="showcase-stage">
+    
+    <div class="top-row">
+      <div class="float-slot rotate-left">
+        <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/appgif1.3.0.gif" alt="omus lyrics demo" />
+      </div>
+
+      <div class="float-slot rotate-right">
+        <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/fullscreen-mini-showcase-v1.3.0.gif" alt="omus fullscreen mini demo" onerror="this.style.display='none';" />
+      </div>
+    </div>
+
+    <div class="float-slot main-showcase">
+      <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/showcase1.3.0.webp" alt="omus full showcase" onerror="this.style.display='none';" />
+    </div>
+
+  </section>
+
+  <footer>
+    <span>omus 2026</span>
+    <div>
+      <a href="https://github.com/bubu07codes/omus" target="_blank">Source Code</a>
+      <span style="margin: 0 8px;">·</span>
+      <a href="https://github.com/bubu07codes/omus/blob/master/LICENSE" target="_blank">License</a>
+    </div>
+  </footer>
+</div>
+
+</body>
+</html>
