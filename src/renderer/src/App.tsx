@@ -2192,7 +2192,7 @@ export default function App() {
           view is open so only the cover, track info and lyrics take the screen. */}
       {!isFullscreenCover && <TitleBar onAbout={() => setIsAboutOpen(true)} />}
 
-      {/* Full-viewport load screen shown while data hydrates */}
+      {/* Full-viewport load screen shown while data loads */}
       {isInitializing && <LoadingScreen />}
 
       {/* Track Context Menu — shared for every track in every view */}
