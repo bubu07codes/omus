@@ -1,43 +1,52 @@
-<img src="https://github.com/bubu07codes/omus/blob/master/src/renderer/public/logo.svg" />
+<p align="center">
+  <img src="https://raw.githubusercontent.com/bubu07codes/omus/refs/heads/master/src/renderer/public/logo.svg" width="300" alt="omus logo" />
+</p>
 
-Desktop music player for local files, with a ton of features.
+A fast, lightweight desktop music player built for people who love their local media collection. 
 
-Built with Electron, React, Vite, TypeScript, and SQLite. No tracking, no accounts, no cloud setup.
+**No accounts. No tracking. No cloud setup.** Just your music, direct from your hard drive.
 
-<img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/appgif1.3.0.gif" width="100%" alt="omus demo">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/appgif1.3.0.gif" width="45%" alt="omus demo 1" />
+  <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/showcase1.3.0.webp" width="45%" alt="omus demo 2" />
+</p>
 
 ---
 
-## What's Inside
+## Features
 
-* **Format Support:** MP3, FLAC, WAV, M4A, OGG, AAC, and local video files.
-* **Synced Lyrics:** Auto-fetches lyrics via LRCLIB with manual search, timing offsets, and click-to-seek support.
-* **Audio Controls:** 10-band equalizer with presets, customizable crossfade, sleep timer, and live visualizers (waveform, bars, radial).
-* **Library & Playlists:** Drag-and-drop import, local play count tracking, custom metadata editing, album covers, and M3U/M3U8 import/export.
-* **Customization:** Built-in UI themes, ambient background modes, and full UI scaling (70–160%).
+* **Plays Anything:** Native support for MP3, FLAC, WAV, M4A, OGG, AAC, and even video files.
+* **Synced Lyrics:** Automatic lyric lookup with manual search, timing offsets, and instant click-to-seek playback.
+* **Pro Audio Tools:** 10-band equalizer with presets, seamless crossfading, a sleep timer, and dynamic live visualizers.
+* **Library Management:** Drag-and-drop imports, metadata tag editing, album artwork support, play statistics.
+* **Make It Yours:** Custom UI themes and fonts, ambient background modes, and fully adjustable UI scaling.
 
-## Local Development
+---
+
+## Download & Install
+
+1. Grab the latest installer or executable from the [**Releases Page**](https://github.com/bubu07codes/omus/releases/latest).
+2. Run the setup file and open **omus**.
+3. Add your music and start listening!
+
+<details>
+
+<summary><strong>Building from Source (For Developers)</strong></summary>
 
 ```bash
-# Install dependencies
+# Clone and install dependencies
 npm install
 
-# Run dev mode
+# Start the app in development mode
 npm run dev
 
-# Package for Windows
+# Build the Windows executable
 npm run build:win
 
 ```
-
-### Architecture Overview
-
-* **Storage:** Local SQLite database for library indexing and playback history.
-* **Audio:** Web Audio API (`Source -> EQ -> Analyser -> Output`) served via a custom `omus-media://` protocol for direct disk streaming.
-* **Process Structure:** `src/main` (Electron), `src/preload` (IPC bridge), `src/renderer` (React UI).
 
 ---
 
 ## License
 
-Source-available under a non-commercial license. See [LICENSE](https://www.google.com/search?q=LICENSE) for details.
+Source-available under a non-commercial license. See [LICENSE](https://github.com/bubu07codes/omus/blob/master/LICENSE) for details.
