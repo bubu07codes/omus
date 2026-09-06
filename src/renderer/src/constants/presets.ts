@@ -1,5 +1,5 @@
 import React from 'react'
-import { Home, Library, ListMusic, Mic2, Settings } from 'lucide-react'
+import { Home, Library, ListMusic, Mic2 } from 'lucide-react'
 import { GoogleFontPreset, Theme, AnimationPreset } from '../types'
 
 export const PRESET_FONTS: GoogleFontPreset[] = [
@@ -10,7 +10,7 @@ export const PRESET_FONTS: GoogleFontPreset[] = [
 export const PRESET_THEMES: Theme[] = [
   {
     id: 'dark',
-    name: 'OLED',
+    name: 'Dark',
     bg: '#000000',
     sidebarBg: '#050505',
     cardBg: '#121212',
@@ -51,22 +51,22 @@ export const PRESET_THEMES: Theme[] = [
   {
     id: 'nord',
     name: 'Nord',
-    bg: '#2e3440',
-    sidebarBg: '#242933',
-    cardBg: '#3b4252',
+    bg: '#181c24',
+    sidebarBg: '#12151c',
+    cardBg: '#212732',
     textPrimary: '#eceff4',
-    textSecondary: '#d8dee9',
+    textSecondary: '#9aa5b9',
     accent: '#88c0d0'
   },
   {
     id: 'gruvbox',
     name: 'Gruvbox',
-    bg: '#282828',
-    sidebarBg: '#1d2021',
-    cardBg: '#3c3836',
+    bg: '#141617',
+    sidebarBg: '#0e1011',
+    cardBg: '#1d2021',
     textPrimary: '#fbf1c7',
     textSecondary: '#a89984',
-    accent: '#fabd2f'
+    accent: '#fe8019'
   },
   {
     id: 'forest',
@@ -80,33 +80,33 @@ export const PRESET_THEMES: Theme[] = [
   },
   {
     id: 'cyberpunk',
-    name: 'Neon',
+    name: 'Cyber',
     bg: '#090d16',
     sidebarBg: '#04060a',
     cardBg: '#111a2e',
-    textPrimary: '#ffffff',
+    textPrimary: '#f43f5e',
     textSecondary: '#38bdf8',
     accent: '#f43f5e'
   },
   {
     id: 'dracula',
     name: 'Dracula',
-    bg: '#282a36',
-    sidebarBg: '#21222c',
-    cardBg: '#343746',
+    bg: '#12131c',
+    sidebarBg: '#0b0c12',
+    cardBg: '#181926',
     textPrimary: '#f8f8f2',
-    textSecondary: '#6272a4',
+    textSecondary: '#9093b0',
     accent: '#bd93f9'
   },
   {
-    id: 'ocean',
-    name: 'Ocean',
-    bg: '#08141e',
-    sidebarBg: '#050d14',
-    cardBg: '#0f2334',
-    textPrimary: '#f0f9ff',
-    textSecondary: '#7dd3fc',
-    accent: '#06b6d4'
+    id: 'synthwave',
+    name: 'Synthwave',
+    bg: '#090812',
+    sidebarBg: '#05040a',
+    cardBg: '#120f24',
+    textPrimary: '#f5f3ff',
+    textSecondary: '#9a8cb4',
+    accent: '#ff007f'
   },
   {
     id: 'monochrome',
@@ -205,16 +205,14 @@ export const PRESET_ANIMATIONS: AnimationPreset[] = [
 ]
 
 export const NAV_ITEMS: {
-  id: 'home' | 'library' | 'playlists' | 'queue' | 'lyrics' | 'settings'
+  id: 'home' | 'library' | 'playlists' | 'queue' | 'lyrics'
   label: string
   IconComp: React.ComponentType<{ size?: number | string }>
 }[] = [
   { id: 'home', label: 'Home', IconComp: Home },
   { id: 'library', label: 'Library', IconComp: Library },
   { id: 'playlists', label: 'Playlists', IconComp: ListMusic },
-  { id: 'queue', label: 'Queue', IconComp: ListMusic },
-  { id: 'lyrics', label: 'Lyrics', IconComp: Mic2 },
-  { id: 'settings', label: 'Settings', IconComp: Settings }
+  { id: 'lyrics', label: 'Lyrics', IconComp: Mic2 }
 ]
 
 export const PL_PALETTES: [string, string][] = [

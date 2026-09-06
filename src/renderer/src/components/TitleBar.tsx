@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react'
-import { Minus, Square, Copy, X } from 'lucide-react'
+import { Minus, Square, Copy, X, Settings } from 'lucide-react'
 
 const IS_WINDOWS = typeof window !== 'undefined' && window.api?.platform === 'win32'
 
 export interface TitleBarProps {
   onAbout?: () => void
+  onSettings?: () => void
+  center?: React.ReactNode
 }
 
-export function TitleBar({ onAbout }: TitleBarProps): React.ReactElement {
+export function TitleBar({ onAbout, onSettings, center }: TitleBarProps): React.ReactElement {
   const [maximized, setMaximized] = useState(false)
 
   useEffect(() => {
@@ -38,7 +40,8 @@ export function TitleBar({ onAbout }: TitleBarProps): React.ReactElement {
         if (
           IS_WINDOWS &&
           !target.closest('.title-bar-controls') &&
-          !target.closest('.title-bar-logo')
+          !target.closest('.title-bar-logo') &&
+          !target.closest('.title-bar-center')
         ) {
           void toggleMaximize()
         }
@@ -65,8 +68,21 @@ export function TitleBar({ onAbout }: TitleBarProps): React.ReactElement {
         <span style={{ display: 'none', fontWeight: 800, fontSize: 18 }}>omus</span>
       </div>
 
+      {IS_WINDOWS && center && (
+        <div className="title-bar-center">{center}</div>
+      )}
+
       {IS_WINDOWS && (
         <div className="title-bar-controls" data-no-drag="true">
+          <button
+            type="button"
+            className="title-bar-btn"
+            onClick={() => onSettings?.()}
+            aria-label="Settings"
+            title="Settings"
+          >
+            <Settings size={14} strokeWidth={2.2} />
+          </button>
           <button
             type="button"
             className="title-bar-btn"

@@ -4,7 +4,7 @@ Desktop music player for local files, with a ton of features.
 
 Built with Electron, React, Vite, TypeScript, and SQLite. No tracking, no accounts, no cloud setup.
 
-<img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/appgif.gif" width="100%" alt="omus demo">
+<img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/appgif1.3.0.gif" width="100%" alt="omus demo">
 
 ---
 

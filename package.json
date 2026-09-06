@@ -1,6 +1,6 @@
 {
   "name": "omus",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "the best offline music player with tons of features.",
   "main": "./out/main/index.js",
   "author": "bubu07",
@@ -56,5 +56,15 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^7.2.6"
+  },
+  "build": {
+  "appId": "com.omus.app",
+  "productName": "omus",
+  "win": {
+    "target": ["nsis"]
+  },
+  "nsis": {
+    "artifactName": "install-omus.${ext}"
   }
+}
 }

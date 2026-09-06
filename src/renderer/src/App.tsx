@@ -59,6 +59,8 @@ import {
   Plug,
   Keyboard,
   Code2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import {
   Track,
@@ -101,6 +103,7 @@ import {
 } from './components/TrackRows'
 import { LyricLine } from './components/LyricLine'
 import { TitleBar } from './components/TitleBar'
+import { GlobalSearch } from './components/GlobalSearch'
 import { LoadingScreen } from './components/LoadingScreen'
 
 // The custom frameless title bar is only shown on Windows (where the native
@@ -158,6 +161,9 @@ interface SavedSettings {
   lastPositionSecs?: number
   playCounts?: Record<string, number>
   recentlyPlayed?: string[]
+  railCollapsed?: boolean
+  railWidth?: number
+  globalSearchEnabled?: boolean
   uiScale?: number
 }
 
@@ -204,6 +210,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [libraryLayout, setLibraryLayout] = useState<'grid' | 'table' | 'group'>('table')
   const [libraryDensity, setLibraryDensity] = useState<'comfortable' | 'compact'>('comfortable')
+
+  // ---- Sidebar (left rail) state: collapsible + resizable ----
+  const [railCollapsed, setRailCollapsed] = useState(false)
+  const [railWidth, setRailWidth] = useState(84)
+  const [railResizing, setRailResizing] = useState(false)
 
   // ---- Playback Controls ----
   const [shuffleOn, setShuffleOn] = useState(false)
@@ -320,6 +331,9 @@ export default function App() {
   const [customCssInput, setCustomCssInput] = useState('')
   const [currentFont, setCurrentFont] = useState<string>('Original')
   const [animId, setAnimId] = useState<string>('modern')
+
+  // Toggle for the global search bar shown in the window title bar.
+  const [globalSearchEnabled, setGlobalSearchEnabled] = useState(true)
 
   // Overall UI scale (roughly 70% – 160%). Applied natively via Electron's
   // webFrame.setZoomFactor, so every unit scales together. Ranges are clamped.
@@ -866,6 +880,11 @@ export default function App() {
                   .filter((id): id is string => typeof id === 'string')
                   .slice(0, 100)
               )
+            if (typeof saved.railCollapsed === 'boolean')
+              setRailCollapsed(saved.railCollapsed)
+            if (typeof saved.railWidth === 'number') setRailWidth(saved.railWidth)
+            if (typeof saved.globalSearchEnabled === 'boolean')
+              setGlobalSearchEnabled(saved.globalSearchEnabled)
 
             if (saved.resumePlayback !== false && saved.lastTrackId && storedTracks.length > 0) {
               const idx = storedTracks.findIndex((t: Track) => t.id === saved.lastTrackId)
@@ -923,6 +942,9 @@ export default function App() {
       } else if (e.key === 'l' || e.key === 'L') {
         e.preventDefault()
         toggleLyricsView()
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        navigateView(view === 'settings' ? previousView || 'library' : 'settings')
       } else if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault()
         navigateView(view === 'queue' ? 'library' : 'queue')
@@ -1013,6 +1035,9 @@ export default function App() {
       lastPositionSecs: Math.floor(currentTime),
       playCounts,
       recentlyPlayed,
+      railCollapsed,
+      railWidth,
+      globalSearchEnabled,
       uiScale
     }),
     [
@@ -1054,6 +1079,9 @@ export default function App() {
       currentTime,
       playCounts,
       recentlyPlayed,
+      railCollapsed,
+      railWidth,
+      globalSearchEnabled,
       uiScale
     ]
   )
@@ -1543,6 +1571,65 @@ export default function App() {
     setDetailSearch('')
   }
 
+  // ---- Global search (title-bar) actions ----
+  const handleGlobalPlayTrack = useCallback(
+    (t: Track) => {
+      void loadAndPlayIndex(0, [t])
+    },
+    [loadAndPlayIndex]
+  )
+
+  const handleGlobalOpenAlbum = useCallback(
+    (key: string) => {
+      setHomeDetail({ kind: 'album', key })
+      navigateView('home')
+    },
+    [navigateView]
+  )
+
+  const handleGlobalOpenArtist = useCallback(
+    (name: string) => {
+      setHomeDetail({ kind: 'artist', name })
+      navigateView('home')
+    },
+    [navigateView]
+  )
+
+  const handleGlobalOpenPlaylist = useCallback(
+    (id: string) => {
+      void handleSelectPlaylist(id)
+      navigateView('playlists')
+    },
+    [handleSelectPlaylist, navigateView]
+  )
+
+  const handleGlobalSearchLibrary = useCallback(
+    (q: string) => {
+      setSearchQuery(q)
+      navigateView('library')
+    },
+    [navigateView]
+  )
+
+  // ---- Sidebar resize (drag the rail's right edge) ----
+  const handleRailResizeStart = (e: React.PointerEvent): void => {
+    e.preventDefault()
+    setRailResizing(true)
+    const startX = e.clientX
+    const startW = railWidth
+    const onMove = (ev: PointerEvent): void => {
+      const w = Math.min(280, Math.max(72, startW + (ev.clientX - startX)))
+      setRailWidth(w)
+    }
+    const onUp = (): void => {
+      setRailResizing(false)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  }
+
   const handleOpenAddTracks = () => {
     setAddSelection(new Set())
     setAddSearch('')
@@ -1854,6 +1941,9 @@ export default function App() {
     setBalance(0)
     setPlayCounts({})
     setRecentlyPlayed([])
+    setRailCollapsed(false)
+    setRailWidth(84)
+    setGlobalSearchEnabled(true)
     setUiScale(1)
     addToast('Settings reset to defaults', undefined, 'info')
   }
@@ -2190,7 +2280,25 @@ export default function App() {
 
       {/* Custom frameless window title bar — hidden while the fullscreen now-playing
           view is open so only the cover, track info and lyrics take the screen. */}
-      {!isFullscreenCover && <TitleBar onAbout={() => setIsAboutOpen(true)} />}
+      {!isFullscreenCover && (
+        <TitleBar
+          onAbout={() => setIsAboutOpen(true)}
+          onSettings={() => navigateView('settings')}
+          center={
+            globalSearchEnabled ? (
+              <GlobalSearch
+                tracks={library}
+                playlists={playlists}
+                onPlayTrack={handleGlobalPlayTrack}
+                onOpenAlbum={handleGlobalOpenAlbum}
+                onOpenArtist={handleGlobalOpenArtist}
+                onOpenPlaylist={handleGlobalOpenPlaylist}
+                onSearchLibrary={handleGlobalSearchLibrary}
+              />
+            ) : undefined
+          }
+        />
+      )}
 
       {/* Full-viewport load screen shown while data loads */}
       {isInitializing && <LoadingScreen />}
@@ -2276,8 +2384,26 @@ export default function App() {
         />
       )}
 
-      {/* LEFT NAVIGATION RAIL */}
-      <nav className="rail">
+      {/* LEFT NAVIGATION RAIL — collapsible + resizable via the rail's
+          right-edge handle / the chevron button on top. */}
+      <nav
+        className={
+          'rail' +
+          (railCollapsed ? ' rail-collapsed' : '') +
+          (railWidth >= 140 && !railCollapsed ? ' rail-wide' : '') +
+          (railResizing ? ' rail-resizing' : '')
+        }
+        style={{ width: railCollapsed ? 60 : railWidth }}
+      >
+        <button
+          type="button"
+          className="rail-collapse-btn"
+          onClick={() => setRailCollapsed((v) => !v)}
+          title={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {railCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        </button>
         <div className="rail-nav">
           {NAV_ITEMS.map(({ id, label, IconComp }) => (
             <button
@@ -2300,6 +2426,11 @@ export default function App() {
             <Plus size={16} />
           </button>
         </div>
+        <div
+          className="rail-resizer"
+          onPointerDown={handleRailResizeStart}
+          title="Resize sidebar"
+        />
       </nav>
 
       {/* MAIN CONTENT */}
@@ -2367,13 +2498,13 @@ export default function App() {
                   onClick={() => setHomeDetail(null)}
                   style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  ← Back to Home
+                  Back to Home
                 </button>
                 <div className="home-detail-hero">
                   <div className="home-detail-art">
                     {(() => {
                       const cover = homeAlbumDetail.tracks.find((t) => t.cover)?.cover
-                      return cover ? <img src={cover} alt="" /> : <Music size={52} opacity={0.4} />
+                      return cover ? <img src={cover} alt="" /> : <Music size={44} opacity={0.4} />
                     })()}
                   </div>
                   <div className="home-detail-info">
@@ -2429,14 +2560,14 @@ export default function App() {
                   onClick={() => setHomeDetail(null)}
                   style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  ← Back to Home
+                  Back to Home
                 </button>
                 <div className="home-detail-hero">
                   <div className="home-detail-art">
                     {homeArtistDetail.covers.length > 0 ? (
                       <img src={homeArtistDetail.covers[0]} alt="" />
                     ) : (
-                      <Music size={52} opacity={0.4} />
+                      <Music size={44} opacity={0.4} />
                     )}
                   </div>
                   <div className="home-detail-info">
@@ -2576,7 +2707,7 @@ export default function App() {
                           {homeHeroTrack.cover ? (
                             <img src={homeHeroTrack.cover} alt="" />
                           ) : (
-                            <Music size={52} opacity={0.35} />
+                            <Music size={44} opacity={0.35} />
                           )}
                         </div>
                       </div>
@@ -3356,7 +3487,7 @@ export default function App() {
                   onClick={handleBackToPlaylists}
                   style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  ← Back to Playlists
+                  Back to Playlists
                 </button>
 
                 <div className="pl-hero">
@@ -4401,6 +4532,25 @@ export default function App() {
             <section id="settings-appearance" className="settings-cat">
             <p className="eyebrow">Appearance & Customization</p>
             <div className="settings-section">
+              <div className="settings-row">
+                <div className="settings-row-text">
+                  <div className="settings-row-title">Global search</div>
+                  <div className="settings-row-desc">
+                    Show the global search bar (tracks, artists, albums, playlists) in the title
+                    bar.
+                  </div>
+                </div>
+                <button
+                  className="switch-label"
+                  onClick={() => setGlobalSearchEnabled((v) => !v)}
+                >
+                  <span className="switch-track" data-active={globalSearchEnabled}>
+                    <span className="switch-knob" />
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 12 }}>
                 Theme Presets
               </label>
@@ -4752,17 +4902,19 @@ export default function App() {
               <div
                 style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}
               >
-                {[
+                                {[
                   ['Space', 'Play / Pause'],
-                  ['L', 'Toggle Lyrics'],
+                  ['L', 'Lyrics'],
                   ['← / →', 'Seek ±5 Seconds'],
                   ['Shift + ← / →', 'Prev / Next Track'],
-                  ['Q', 'Toggle Queue'],
-                  ['M', 'Toggle Mute'],
-                  ['F', 'Fullscreen Now Playing'],
+                  ['Q', 'Queue'],
+                  ['M', 'Mute'],
+                  ['F', 'Fullscreen'],
                   ['E', 'Equalizer'],
+                  ['S', 'Settings'],
                   ['Esc', 'Close Overlays'],
-                  ['Ctrl + Scroll', 'Zoom UI']
+                  ['Ctrl + Scroll', 'Zoom UI'],
+                  ['Ctrl + K', 'Global Search']
                 ].map(([key, label]) => (
                   <div key={key}>
                     <kbd
