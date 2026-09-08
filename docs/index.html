@@ -83,7 +83,11 @@
     100% { transform: translate(-40px, 40px) scale(0.9); }
   }
 
-  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .container { 
+    max-width: 1100px; 
+    margin: 0 auto; 
+    padding: 0 24px; 
+  }
 
   header {
     display: flex;
@@ -138,10 +142,10 @@
   }
 
   .hero-text h1 {
-    font-size: clamp(38px, 5vw, 60px);
+    font-size: clamp(32px, 5vw, 60px);
     font-weight: 800;
     letter-spacing: -1.8px;
-    line-height: 1.05;
+    line-height: 1.08;
     margin-bottom: 16px;
     background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
     -webkit-background-clip: text;
@@ -154,11 +158,16 @@
     max-width: 520px;
   }
 
-  .cta-group { display: flex; gap: 12px; }
+  .cta-group { 
+    display: flex; 
+    gap: 12px; 
+    flex-wrap: wrap;
+  }
 
   .btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     padding: 12px 24px;
     border-radius: 10px;
@@ -269,12 +278,67 @@
   footer a { color: var(--muted); text-decoration: none; }
   footer a:hover { color: var(--text); }
 
+  /* Responsive Media Queries */
   @media (max-width: 900px) {
-    header { justify-content: flex-start; }
-    nav { position: static; }
-    .top-row { flex-direction: column; }
-    .main-showcase { margin-top: 0; }
-    .rotate-left, .rotate-right { animation: floatMain 6s ease-in-out infinite; }
+    header { 
+      flex-direction: column; 
+      gap: 16px;
+      padding: 32px 0 16px;
+    }
+    nav { 
+      position: static; 
+    }
+    .top-row { 
+      flex-direction: column; 
+    }
+    .main-showcase { 
+      margin-top: 0; 
+    }
+    .rotate-left, .rotate-right { 
+      animation: floatMain 6s ease-in-out infinite; 
+    }
+  }
+
+  @media (max-width: 768px) {
+    .container {
+      padding: 0 16px;
+    }
+    .hero {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 24px 0 32px;
+      gap: 24px;
+    }
+    .cta-group {
+      width: 100%;
+      flex-direction: column;
+    }
+    .btn {
+      width: 100%;
+    }
+    .hero-text p {
+      font-size: 16px;
+    }
+    .brand-icon {
+      height: 70px;
+    }
+    .showcase-stage {
+      margin: 24px 0 60px;
+      gap: 16px;
+    }
+    footer {
+      flex-direction: column;
+      gap: 16px;
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .orb-1, .orb-2, .orb-3 {
+      width: 300px;
+      height: 300px;
+      filter: blur(80px);
+    }
   }
 </style>
 </head>
