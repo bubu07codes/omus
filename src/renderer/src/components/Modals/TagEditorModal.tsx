@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, FolderOpen, ImagePlus, Check } from 'lucide-react'
+import { X, FolderOpen, ImagePlus, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { Track } from '../../types'
 
 interface TagEditorModalProps {
@@ -24,9 +24,8 @@ export function TagEditorModal({
   const [lyrics, setLyrics] = useState(track?.lyrics || '')
   const [isSaving, setIsSaving] = useState(false)
   const [prevTrackId, setPrevTrackId] = useState<string | null>(null)
+  const [isLyricsExpanded, setIsLyricsExpanded] = useState(false)
 
-  // Keep the form fields in sync when a different track is opened
-  // (render-phase adjustment — the idiomatic replacement for a sync effect).
   if (track && track.id !== prevTrackId) {
     setPrevTrackId(track.id)
     setTitle(track.title || '')
@@ -34,6 +33,7 @@ export function TagEditorModal({
     setAlbum(track.album || '')
     setCover(track.cover || '')
     setLyrics(track.lyrics || '')
+    setIsLyricsExpanded(false)
   }
 
   if (!isOpen || !track) return null
@@ -67,7 +67,7 @@ export function TagEditorModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 680 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Edit Track Metadata</h3>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900 }}>Edit Track</h3>
           <button className="btn-plain" onClick={onClose}>
             <X size={16} />
           </button>
@@ -75,7 +75,6 @@ export function TagEditorModal({
 
         <div style={{ padding: 24, overflowY: 'auto' }}>
           <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
-            {/* Album Cover preview & change */}
             <div
               style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
             >
@@ -103,7 +102,7 @@ export function TagEditorModal({
                 )}
               </div>
               <button
-                className="btn-ghost"
+                className="btn btn-ghost btn-sm"
                 style={{ fontSize: 11, padding: '6px 12px' }}
                 onClick={handleSelectCover}
               >
@@ -120,7 +119,6 @@ export function TagEditorModal({
               )}
             </div>
 
-            {/* Inputs */}
             <div style={{ flex: 1 }}>
               <label className="lbl-caps">Title</label>
               <input
@@ -143,19 +141,41 @@ export function TagEditorModal({
             </div>
           </div>
 
-          <label className="lbl-caps">LRC Synchronized Lyrics</label>
-          <textarea
-            className="field"
-            style={{
-              height: 120,
-              fontFamily: 'ui-monospace, monospace',
-              fontSize: 11,
-              resize: 'vertical'
-            }}
-            placeholder="[00:12.34] Lyrics line here..."
-            value={lyrics}
-            onChange={(e) => setLyrics(e.target.value)}
-          />
+          <div style={{ marginBottom: 12 }}>
+            <button
+              className="btn-plain"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: '8px 0',
+                cursor: 'pointer'
+              }}
+              onClick={() => setIsLyricsExpanded((prev) => !prev)}
+            >
+              <span className="lbl-caps" style={{ margin: 0 }}>
+                Lyrics {lyrics.trim() ? '(Added)' : ''}
+              </span>
+              {isLyricsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+
+            {isLyricsExpanded && (
+              <textarea
+                className="field"
+                style={{
+                  height: 120,
+                  marginTop: 8,
+                  fontFamily: 'ui-monospace, monospace',
+                  fontSize: 11,
+                  resize: 'vertical'
+                }}
+                placeholder="[00:12.34] Lyrics line here..."
+                value={lyrics}
+                onChange={(e) => setLyrics(e.target.value)}
+              />
+            )}
+          </div>
 
           <div
             style={{

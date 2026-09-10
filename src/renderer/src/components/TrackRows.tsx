@@ -89,7 +89,7 @@ export const LibraryTableRow = memo(function LibraryTableRow({
       <td>
         <button
           className="row-action"
-          title="Edit Tags"
+          title="Edit"
           onClick={(e) => {
             e.stopPropagation()
             onTagEdit(track)
@@ -236,7 +236,7 @@ export const LibraryGroupRow = memo(function LibraryGroupRow({
           fontWeight: 700
         }}
       >
-        {isActive && isPlaying ? '♫' : groupIndex + 1}
+        {groupIndex + 1 + "."}
       </span>
       <span
         style={{

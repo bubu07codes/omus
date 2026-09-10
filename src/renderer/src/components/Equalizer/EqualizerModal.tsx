@@ -111,13 +111,8 @@ export function EqualizerModal({
                   step="0.5"
                   value={eqPreamp}
                   onChange={(e) => onPreampChange(Number(e.target.value))}
-                  style={{
-                    writingMode: 'vertical-lr',
-                    direction: 'rtl',
-                    height: 140,
-                    cursor: 'pointer',
-                    accentColor: 'var(--accent)'
-                  }}
+                  className="eq-range-vert"
+                  style={{ height: 140 }}
                 />
               </div>
               <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Master</span>
@@ -160,13 +155,8 @@ export function EqualizerModal({
                       step="0.5"
                       value={band.gain}
                       onChange={(e) => onBandChange(idx, Number(e.target.value))}
-                      style={{
-                        writingMode: 'vertical-lr',
-                        direction: 'rtl',
-                        height: 140,
-                        cursor: 'pointer',
-                        accentColor: 'var(--accent)'
-                      }}
+                      className="eq-range-vert"
+                      style={{ height: 140 }}
                     />
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-primary)' }}>
@@ -180,7 +170,7 @@ export function EqualizerModal({
 
         <div className="modal-foot" style={{ justifyContent: 'space-between' }}>
           <button
-            className="btn-ghost"
+            className="btn btn-ghost btn-sm"
             onClick={() => onPresetSelect('flat')}
             style={{ fontSize: 11, padding: '6px 12px' }}
           >

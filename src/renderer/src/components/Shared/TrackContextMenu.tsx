@@ -53,7 +53,7 @@ export function TrackContextMenu({
       onClick: () => handlers.onAddToQueue(track)
     },
     {
-      label: 'Edit Tags',
+      label: 'Edit',
       icon: <Edit3 size={14} />,
       onClick: () => handlers.onEditTags(track)
     },

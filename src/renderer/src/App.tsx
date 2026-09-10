@@ -39,6 +39,7 @@ import {
   Heart,
   Maximize2,
   Minimize2,
+  MonitorPlay,
   RefreshCw,
   Pencil,
   EllipsisVertical,
@@ -61,6 +62,8 @@ import {
   Code2,
   PanelLeftClose,
   PanelLeftOpen,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react'
 import {
   Track,
@@ -142,6 +145,9 @@ interface SavedSettings {
   fluidBgOpacity?: number
   fluidBgSpeed?: 'calm' | 'smooth' | 'dynamic'
   fluidBgSaturation?: number
+  fluidBgMode?: 'aurora' | 'waves' | 'prism' | 'nebula'
+  fullscreenMode?: 'normal' | 'cover'
+  fullscreenAmbience?: boolean
   likedTrackIds?: string[]
   lyricFontSize?: number
   lyricAlignment?: 'left' | 'center' | 'right'
@@ -175,6 +181,7 @@ const SETTINGS_CATS: {
 }[] = [
   { id: 'lyrics', label: 'Lyrics', Icon: Mic2 },
   { id: 'audio', label: 'Sound & Vision', Icon: Sliders },
+  { id: 'fullscreen', label: 'Fullscreen', Icon: MonitorPlay },
   { id: 'ambience', label: 'Ambience', Icon: Sparkles },
   { id: 'integrations', label: 'Integrations', Icon: Plug },
   { id: 'appearance', label: 'Appearance', Icon: Palette },
@@ -184,6 +191,178 @@ const SETTINGS_CATS: {
   { id: 'advanced', label: 'Advanced', Icon: Code2 }
 ]
 
+function FluidBackgroundLayer({
+  cover,
+  opacity,
+  blur,
+  saturation,
+  duration,
+  softScrim,
+  mode = 'aurora'
+}: {
+  cover?: string | null
+  opacity: number
+  blur: number
+  saturation: number
+  duration: string
+  softScrim?: boolean
+  mode?: 'aurora' | 'waves' | 'prism' | 'nebula'
+}) {
+  const blurPx = Math.min(blur, 48)
+  const satPct = Math.min(saturation, 200)
+  const filter = `blur(${blurPx}px) saturate(${satPct}%)`
+  // The aurora orbs are huge and come with cover art, so they get a gentler
+  // container opacity. The pure-theme modes (waves/prism/nebula) look too
+  // faint at that level, so give them a visible bump.
+  const fillOpacity = mode === 'aurora' ? opacity : Math.min(1, opacity * 1.4)
+  // Motion speed (seconds per full animation cycle) parsed from the speed setting.
+  const speedSecs = parseFloat(duration) || 22
+
+  // Album-art based pieces: each mode renders deformed, heavily-blurred crops
+  // of the cover art. When there's no cover we fall back to the class-level
+  // gradient backgrounds defined in CSS.
+  const artBg = cover
+    ? {
+        backgroundImage: `url(${cover})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }
+    : undefined
+
+  // Same cover, different crop focus per piece so the layers don't stack
+  // identically — keeps the backdrop organic once blurred.
+  const artAt = (pos: string) => (cover ? { ...artBg, backgroundPosition: pos } : undefined)
+
+  const renderLayers = () => {
+    if (mode === 'waves') {
+      return (
+        <div className="fb-waves">
+          <div
+            className="fb-wave fb-wave-1"
+            style={{ ...artAt('center 40%'), animationDuration: `${Math.round(speedSecs * 0.9 * 10) / 10}s` }}
+          />
+          <div
+            className="fb-wave fb-wave-2"
+            style={{ ...artAt('20% 55%'), animationDuration: `${Math.round(speedSecs * 1.2 * 10) / 10}s` }}
+          />
+          <div
+            className="fb-wave fb-wave-3"
+      style={{ ...artAt('75% 45%'), animationDuration: `${Math.round(speedSecs * 1.5 * 10) / 10}s` }}
+          />
+          <div
+            className="fb-wave fb-wave-4"
+            style={{ ...artAt('50% 70%'), animationDuration: `${Math.round(speedSecs * 1.8 * 10) / 10}s` }}
+          />
+        </div>
+      )
+    }
+    if (mode === 'prism') {
+      return (
+        <div className="fb-prism">
+          <div
+            className="fb-prism-piece fb-prism-1"
+            style={{ ...artAt('30% 45%'), animationDuration: `${Math.round(speedSecs * 0.9 * 10) / 10}s` }}
+          />
+          <div
+            className="fb-prism-piece fb-prism-2"
+            style={{ ...artAt('65% 60%'), animationDuration: `${Math.round(speedSecs * 1.2 * 10) / 10}s` }}
+          />
+          <div
+            className="fb-prism-piece fb-prism-3"
+            style={{ ...artAt('45% 35%'), animationDuration: `${Math.round(speedSecs * 1.5 * 10) / 10}s` }}
+          />
+        </div>
+      )
+    }
+    if (mode === 'nebula') {
+      return (
+        <div className="fb-nebula">
+          <div
+            className="fb-blob fb-blob-1"
+            style={{ ...artAt('30% 45%'), animationDuration: `${Math.round(speedSecs * 0.9 * 10) / 10}s` }}
+          />
+          <div
+            className="fb-blob fb-blob-2"
+            style={{ ...artAt('65% 60%'), animationDuration: `${Math.round(speedSecs * 1.2 * 10) / 10}s` }}
+          />
+          <div
+            className="fb-blob fb-blob-3"
+            style={{ ...artAt('45% 35%'), animationDuration: `${Math.round(speedSecs * 1.5 * 10) / 10}s` }}
+          />
+        </div>
+      )
+    }
+    // Aurora — the classic morphing cover-art orbs (default).
+    if (cover) {
+      return (
+        <>
+          <div
+            className="fluid-orb orb-1"
+            style={{
+              backgroundImage: `url(${cover})`,
+              animation: `fluidMorph1 ${duration} ease-in-out infinite`
+            }}
+          />
+          <div
+            className="fluid-orb orb-2"
+            style={{
+              background: `radial-gradient(circle, var(--accent) 0%, var(--card-bg) 70%, transparent 100%)`,
+              animation: `fluidMorph2 ${parseFloat(duration) * 1.2}s ease-in-out infinite reverse`
+            }}
+          />
+          <div
+            className="fluid-orb orb-3"
+            style={{
+              background: `radial-gradient(circle, var(--sidebar-bg) 0%, var(--accent) 60%, transparent 100%)`,
+              animation: `fluidMorph3 ${parseFloat(duration) * 0.8}s ease-in-out infinite`
+            }}
+          />
+        </>
+      )
+    }
+    return (
+      <>
+        <div
+          className="fluid-orb orb-1"
+          style={{
+            background: `radial-gradient(circle, var(--accent) 0%, var(--card-bg) 70%, transparent 100%)`,
+            animation: `fluidMorph1 ${duration} ease-in-out infinite`
+          }}
+        />
+        <div
+          className="fluid-orb orb-2"
+          style={{
+            background: `radial-gradient(circle, var(--sidebar-bg) 0%, var(--accent) 60%, transparent 100%)`,
+            animation: `fluidMorph2 ${parseFloat(duration) * 1.2}s ease-in-out infinite reverse`
+          }}
+        />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div
+        className="fluid-bg-container"
+        style={{
+          opacity: fillOpacity,
+          filter,
+          transform: 'translateZ(0)',
+          willChange: 'transform'
+        }}
+      >
+        {renderLayers()}
+      </div>
+      <div
+        className="fluid-scrim"
+        style={{
+          background: `radial-gradient(circle at 50% 40%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%)`,
+          opacity: softScrim ? 0.4 : 0.6
+        }}
+      />
+    </>
+  )
+}
 export default function App() {
   // ---- Library & playlists state ----
   const [library, setLibrary] = useState<Track[]>([])
@@ -210,6 +389,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [libraryLayout, setLibraryLayout] = useState<'grid' | 'table' | 'group'>('table')
   const [libraryDensity, setLibraryDensity] = useState<'comfortable' | 'compact'>('comfortable')
+  // Albums view: which album groups are collapsed (key → collapsed)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
 
   // ---- Sidebar (left rail) state: collapsible + resizable ----
   const [railCollapsed, setRailCollapsed] = useState(false)
@@ -253,6 +434,13 @@ export default function App() {
   const [fluidBgOpacity, setFluidBgOpacity] = useState(0.35)
   const [fluidBgSpeed, setFluidBgSpeed] = useState<'calm' | 'smooth' | 'dynamic'>('smooth')
   const [fluidBgSaturation, setFluidBgSaturation] = useState(140)
+  const [fluidBgMode, setFluidBgMode] = useState<'aurora' | 'waves' | 'prism' | 'nebula'>(
+    'aurora'
+  )
+
+  // ---- Fullscreen preferences ----
+  const [fullscreenMode, setFullscreenMode] = useState<'normal' | 'cover'>('normal')
+  const [fullscreenAmbience, setFullscreenAmbience] = useState(false)
 
   // ---- Modals / Overlays ----
   const [showCoverModal, setShowCoverModal] = useState(false)
@@ -853,6 +1041,11 @@ export default function App() {
             if (saved.fluidBgSpeed) setFluidBgSpeed(saved.fluidBgSpeed)
             if (typeof saved.fluidBgSaturation === 'number')
               setFluidBgSaturation(saved.fluidBgSaturation)
+            if (saved.fluidBgMode) setFluidBgMode(saved.fluidBgMode)
+            if (saved.fullscreenMode) setFullscreenMode(saved.fullscreenMode)
+
+            if (typeof saved.fullscreenAmbience === 'boolean')
+              setFullscreenAmbience(saved.fullscreenAmbience)
             if (Array.isArray(saved.likedTrackIds)) setLikedTrackIds(saved.likedTrackIds)
             if (typeof saved.lyricFontSize === 'number') setLyricFontSize(saved.lyricFontSize)
             if (saved.lyricAlignment) setLyricAlignment(saved.lyricAlignment)
@@ -1016,6 +1209,9 @@ export default function App() {
       fluidBgOpacity,
       fluidBgSpeed,
       fluidBgSaturation,
+      fluidBgMode,
+      fullscreenMode,
+      fullscreenAmbience,
       likedTrackIds,
       lyricFontSize,
       lyricAlignment,
@@ -1060,6 +1256,9 @@ export default function App() {
       fluidBgOpacity,
       fluidBgSpeed,
       fluidBgSaturation,
+      fluidBgMode,
+      fullscreenMode,
+      fullscreenAmbience,
       likedTrackIds,
       lyricFontSize,
       lyricAlignment,
@@ -1132,6 +1331,9 @@ export default function App() {
     fluidBgOpacity,
     fluidBgSpeed,
     fluidBgSaturation,
+    fluidBgMode,
+    fullscreenMode,
+    fullscreenAmbience,
     likedTrackIds,
     lyricFontSize,
     lyricAlignment,
@@ -1925,6 +2127,9 @@ export default function App() {
     setFluidBgOpacity(0.35)
     setFluidBgSpeed('smooth')
     setFluidBgSaturation(140)
+    setFluidBgMode('aurora')
+    setFullscreenMode('normal')
+    setFullscreenAmbience(false)
     setLyricFontSize(28)
     setLyricAlignment('left')
     setLyricLineGap(0.35)
@@ -2132,6 +2337,18 @@ export default function App() {
     )
   }, [homeMostPlayed, loadAndPlayIndex])
 
+  // Library toolbar quick actions: play current search result, or shuffle it.
+  const handlePlayAllLibrary = useCallback(() => {
+    if (filteredLibrary.length === 0) return
+    void loadAndPlayIndex(0, filteredLibrary)
+  }, [filteredLibrary, loadAndPlayIndex])
+
+  const handleShuffleLibrary = useCallback(() => {
+    if (filteredLibrary.length === 0) return
+    const shuffled = [...filteredLibrary].sort(() => Math.random() - 0.5)
+    void loadAndPlayIndex(0, shuffled)
+  }, [filteredLibrary, loadAndPlayIndex])
+
   // ---- Grouped library (by Artist + Album) ----
   const orderedTracks = useMemo(() => {
     if (customTrackOrder && customTrackOrder.length) {
@@ -2211,6 +2428,34 @@ export default function App() {
     const idx = orderedTracks.findIndex((t) => t.id === group.tracks[0]?.id)
     if (idx >= 0) loadAndPlayIndex(idx, orderedTracks)
   }
+
+  // Albums view: collapse/expand a single album group.
+  const toggleGroupCollapse = useCallback((key: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+  }, [])
+
+  // Albums view: add every track of an album to a chosen playlist at once.
+  const handleAddAlbumToPlaylist = useCallback(
+    async (tracks: Track[], e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = e.target.value
+      if (!val || tracks.length === 0) return
+      for (const t of tracks) {
+        await window.api.addTrackToPlaylist(val, t.id)
+      }
+      if (selectedPlaylistId === val) {
+        const plTracks = await window.api.getPlaylistTracks(val)
+        setPlaylistTracks(plTracks)
+      }
+      refreshPlaylistCovers()
+      e.target.value = ''
+      addToast(
+        `Added ${tracks.length} track${tracks.length === 1 ? '' : 's'} to playlist`,
+        undefined,
+        'success'
+      )
+    },
+    [selectedPlaylistId, refreshPlaylistCovers, addToast]
+  )
 
   const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId) || null
   const selectedGradient = parseGradient(selectedPlaylist?.cover_gradient)
@@ -2315,72 +2560,14 @@ export default function App() {
           onClose={() => setContextMenu(null)}
         />
       )}
-
-      {/* FLUID AMBIENT BACKGROUND */}
       {fluidBgEnabled && (
-        <div
-          className="fluid-bg-container"
-          style={{
-            opacity: currentTrack?.cover ? fluidBgOpacity * 0.4 : fluidBgOpacity,
-            filter: `blur(${Math.min(fluidBgBlur, 48)}px) saturate(${Math.min(fluidBgSaturation, 200)}%)`,
-            // Promote the blurred container to its own compositor layer so the
-            // expensive blur+saturate is baked once andorb transforms just re-composite
-            // the cached layer, instead of re-rasterising the whole viewport each frame.
-            transform: 'translateZ(0)',
-            willChange: 'transform'
-          }}
-        >
-          {currentTrack?.cover ? (
-            <>
-              <div
-                className="fluid-orb orb-1"
-                style={{
-                  backgroundImage: `url(${currentTrack.cover})`,
-                  animation: `fluidMorph1 ${fluidAnimDuration} ease-in-out infinite`
-                }}
-              />
-              <div
-                className="fluid-orb orb-2"
-                style={{
-                  background: `radial-gradient(circle, var(--accent) 0%, var(--card-bg) 70%, transparent 100%)`,
-                  animation: `fluidMorph2 ${parseFloat(fluidAnimDuration) * 1.2}s ease-in-out infinite reverse`
-                }}
-              />
-              <div
-                className="fluid-orb orb-3"
-                style={{
-                  background: `radial-gradient(circle, var(--sidebar-bg) 0%, var(--accent) 60%, transparent 100%)`,
-                  animation: `fluidMorph3 ${parseFloat(fluidAnimDuration) * 0.8}s ease-in-out infinite`
-                }}
-              />
-            </>
-          ) : (
-            <>
-              <div
-                className="fluid-orb orb-1"
-                style={{
-                  background: `radial-gradient(circle, var(--accent) 0%, var(--card-bg) 70%, transparent 100%)`,
-                  animation: `fluidMorph1 ${fluidAnimDuration} ease-in-out infinite`
-                }}
-              />
-              <div
-                className="fluid-orb orb-2"
-                style={{
-                  background: `radial-gradient(circle, var(--sidebar-bg) 0%, var(--accent) 60%, transparent 100%)`,
-                  animation: `fluidMorph2 ${parseFloat(fluidAnimDuration) * 1.2}s ease-in-out infinite reverse`
-                }}
-              />
-            </>
-          )}
-        </div>
-      )}
-      {fluidBgEnabled && (
-        <div
-          className="fluid-scrim"
-          style={{
-            background: `radial-gradient(circle at 50% 40%, rgba(0,0,0,0.05) 0%, var(--bg) 100%)`,
-            opacity: 0.85
-          }}
+        <FluidBackgroundLayer
+          cover={currentTrack?.cover}
+          opacity={currentTrack?.cover ? fluidBgOpacity * 0.4 : fluidBgOpacity}
+          blur={fluidBgBlur}
+          saturation={fluidBgSaturation}
+          duration={fluidAnimDuration}
+          mode={fluidBgMode}
         />
       )}
 
@@ -2653,13 +2840,7 @@ export default function App() {
                     </p>
                     <h1 className="home-greeting">{homeGreeting}</h1>
                     <p className="home-subtitle">
-                      <span>{library.length} tracks</span>
-                      <span>·</span>
-                      <span>{new Set(library.map((t) => t.artist)).size} artists</span>
-                      <span>·</span>
-                      <span>
-                        {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}
-                      </span>
+                      <span>Your library, ready when you are.</span>
                     </p>
                   </div>
                   <div className="home-header-actions">
@@ -2701,8 +2882,13 @@ export default function App() {
                         })
                       }
                     >
+                      {homeHeroTrack.cover && (
+                        <div
+                          className="tile-hero-bg"
+                          style={{ backgroundImage: `url(${homeHeroTrack.cover})` }}
+                        />
+                      )}
                       <div className="tile-hero-art-wrap">
-                        <div className="tile-hero-ambient" />
                         <div className="tile-hero-art">
                           {homeHeroTrack.cover ? (
                             <img src={homeHeroTrack.cover} alt="" />
@@ -2713,14 +2899,9 @@ export default function App() {
                       </div>
                       <div className="tile-hero-info">
                         <div className="tile-hero-tag">
-                          {currentTrack?.id === homeHeroTrack.id && isPlaying && (
-                            <span className="hero-live-dot" />
-                          )}
-                          {currentTrack?.id === homeHeroTrack.id
-                            ? isPlaying
-                              ? 'NOW PLAYING'
-                              : 'PAUSED'
-                            : 'CONTINUE LISTENING'}
+                          {currentTrack?.id === homeHeroTrack.id && isPlaying
+                            ? 'Now Playing'
+                            : 'Continue Listening'}
                         </div>
                         <h2>{homeHeroTrack.title}</h2>
                         <p>
@@ -2775,24 +2956,21 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* STATS / LIBRARY PULSE TILE */}
+                  {/* LIBRARY STATS — quiet stat strip */}
                   <section className="home-tile tile-stats">
                     <div className="tile-stats-head">
                       <span>Library Pulse</span>
-                      <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 800 }}>
-                        OVERVIEW
-                      </span>
                     </div>
-                    <div className="tile-stats-grid">
-                      <div
+                    <div className="tile-stats-list">
+                      <button
                         className="tile-stat"
                         onClick={() => setView('library')}
                         title="View all tracks"
                       >
                         <b>{library.length}</b>
                         <span>Tracks</span>
-                      </div>
-                      <div
+                      </button>
+                      <button
                         className="tile-stat"
                         onClick={() => {
                           setLibraryLayout('group')
@@ -2802,16 +2980,16 @@ export default function App() {
                       >
                         <b>{new Set(library.map((t) => t.artist)).size}</b>
                         <span>Artists</span>
-                      </div>
-                      <div
+                      </button>
+                      <button
                         className="tile-stat"
                         onClick={() => setView('playlists')}
                         title="View playlists"
                       >
                         <b>{playlists.length}</b>
                         <span>Playlists</span>
-                      </div>
-                      <div
+                      </button>
+                      <button
                         className="tile-stat"
                         onClick={() => {
                           if (homeLikedTracks.length > 0) handlePlayLikedAll()
@@ -2820,34 +2998,36 @@ export default function App() {
                       >
                         <b>{likedTrackIds.length}</b>
                         <span>Liked</span>
-                      </div>
+                      </button>
                     </div>
                   </section>
 
-                  {/* QUICK MIX / LIKED SPOTLIGHT TILE */}
+                  {/* LIKED SONGS — quick shortcut */}
                   <section className="home-tile tile-quick-mix">
                     <div
-                      className="quick-mix-hero"
+                      className="quick-mix-row"
                       onClick={handlePlayLikedAll}
                       title="Play all liked songs"
                     >
-                      <div className="quick-mix-icon">
-                        <Heart size={22} fill="currentColor" />
-                      </div>
-                      <div className="quick-mix-info">
-                        <div className="quick-mix-title">Liked Songs</div>
-                        <div className="quick-mix-sub">
+                      <Heart
+                        size={17}
+                        className="quick-mix-icon"
+                        fill={homeLikedTracks.length > 0 ? 'var(--accent)' : 'none'}
+                      />
+                      <span className="quick-mix-info">
+                        <span className="quick-mix-title">Liked Songs</span>
+                        <span className="quick-mix-sub">
                           {homeLikedTracks.length}{' '}
                           {homeLikedTracks.length === 1 ? 'track' : 'tracks'} ·{' '}
                           {formatTime(homeLikedTracks.reduce((s, t) => s + (t.duration || 0), 0))}
-                        </div>
-                      </div>
+                        </span>
+                      </span>
                       <button
                         className="sp-play-btn"
-                        style={{ width: 34, height: 34 }}
+                        style={{ width: 32, height: 32 }}
                         title="Play Liked Songs"
                       >
-                        <Play size={15} fill="currentColor" style={{ marginLeft: 1 }} />
+                        <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />
                       </button>
                     </div>
 
@@ -3059,7 +3239,7 @@ export default function App() {
                       </button>
                     </div>
                     <div className="tile-albums-grid">
-                      {homeAlbums.slice(0, 3).map((al, i) => (
+                      {homeAlbums.slice(0, 3).map((al) => (
                         <div
                           key={al.key}
                           className="tile-album"
@@ -3072,7 +3252,6 @@ export default function App() {
                             ) : (
                               <Music size={22} opacity={0.4} />
                             )}
-                            <span className="tile-most-rank">{i + 1}</span>
                           </span>
                           <span className="tile-album-name">{al.album}</span>
                           <span className="tile-album-sub">
@@ -3205,6 +3384,22 @@ export default function App() {
                 />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-ghost btn-sm btn-pill"
+                  onClick={handlePlayAllLibrary}
+                  disabled={filteredLibrary.length === 0}
+                  title="Play all tracks in this view"
+                >
+                  <Play size={13} fill="currentColor" style={{ marginLeft: 1 }} /> Play All
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm btn-pill"
+                  onClick={handleShuffleLibrary}
+                  disabled={filteredLibrary.length === 0}
+                  title="Shuffle all tracks in this view"
+                >
+                  <Shuffle size={13} /> Shuffle
+                </button>
                 {libraryLayout === 'table' && (
                   <div className="seg">
                     <button
@@ -3305,95 +3500,116 @@ export default function App() {
               </table>
             ) : libraryLayout === 'group' ? (
               <div className="library-groups">
-                {libraryGroups.map((g) => (
-                  <div key={g.key} className="library-group" style={{ marginBottom: 18 }}>
-                    <div
-                      className="library-group-head"
-                      data-over={overGroupKey === g.key}
-                      data-dragging={dragGroupKey === g.key}
-                      draggable
-                      onDragStart={() => setDragGroupKey(g.key)}
-                      onDragEnd={() => {
-                        setDragGroupKey(null)
-                        setOverGroupKey(null)
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault()
-                        setOverGroupKey(g.key)
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        handleGroupDrop(g.key)
-                      }}
-                      onClick={() => playGroup(g)}
-                    >
+                {libraryGroups.map((g) => {
+                  const firstCover = g.tracks.find((t) => t.cover)?.cover
+                  const isGPlaying = currentTrack
+                    ? g.tracks.some((t) => t.id === currentTrack.id)
+                    : false
+                  const gTotalSecs = g.tracks.reduce((s, t) => s + (t.duration || 0), 0)
+                  const collapsed = !!collapsedGroups[g.key]
+                  return (
+                    <div key={g.key} className="library-group" data-collapsed={collapsed}>
                       <div
-                        className="art-thumb"
-                        style={{
-                          width: 52,
-                          height: 52,
-                          borderRadius: 10,
-                          overflow: 'hidden',
-                          flexShrink: 0
+                        className="library-group-head"
+                        data-over={overGroupKey === g.key}
+                        data-dragging={dragGroupKey === g.key}
+                        draggable
+                        onDragStart={() => setDragGroupKey(g.key)}
+                        onDragEnd={() => {
+                          setDragGroupKey(null)
+                          setOverGroupKey(null)
                         }}
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                          setOverGroupKey(g.key)
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          handleGroupDrop(g.key)
+                        }}
+                        onClick={() => toggleGroupCollapse(g.key)}
+                        title={collapsed ? 'Expand album' : 'Collapse album'}
                       >
-                        {g.tracks.find((t) => t.cover) ? (
-                          <img
-                            src={g.tracks.find((t) => t.cover)!.cover}
-                            alt=""
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              display: 'flex',
-                              height: '100%',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: 'var(--card-bg)'
-                            }}
-                          >
-                            <Music size={20} opacity={0.4} />
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, fontSize: 14 }}>
-                          {g.album}
-                          <span style={{ opacity: 0.5, fontWeight: 500, marginLeft: 8 }}>
-                            {g.artist}
+                        <div
+                          className="lg-art"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playGroup(g)
+                          }}
+                          title="Play album"
+                        >
+                          {firstCover ? (
+                            <img src={firstCover} alt="" />
+                          ) : (
+                            <div className="lg-art-ph">
+                              <Music size={22} opacity={0.4} />
+                            </div>
+                          )}
+                          {isGPlaying && (
+                            <span className="lg-playing" title="Playing album">
+                              <span className="eq">
+                                <span />
+                                <span />
+                                <span />
+                              </span>
+                            </span>
+                          )}
+                          <span className="lg-play-overlay">
+                            <Play size={18} fill="currentColor" style={{ marginLeft: 2 }} />
                           </span>
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          {g.tracks.length} track{g.tracks.length > 1 ? 's' : ''} — drag to reorder
+
+                        <div className="lg-info">
+                          <div className="lg-title">{g.album}</div>
+                          <div className="lg-sub">
+                            {g.artist} · {g.tracks.length}{' '}
+                            {g.tracks.length === 1 ? 'track' : 'tracks'} ·{' '}
+                            {formatTime(gTotalSecs)}
+                          </div>
                         </div>
+
+                        <button
+                          className="lg-btn"
+                          title={collapsed ? 'Expand album' : 'Collapse album'}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleGroupCollapse(g.key)
+                          }}
+                        >
+                          {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                        </button>
+
+                        <GripVertical size={16} className="lg-grip" />
                       </div>
-                      <GripVertical size={16} style={{ color: 'var(--text-secondary)' }} />
+                    {!collapsed && (
+                        <div className="library-group-body">
+                          {g.tracks.map((track, i) => {
+                            const ordIdx = orderedTracks.findIndex((t) => t.id === track.id)
+                            return (
+                              <LibraryGroupRow
+                                key={track.id}
+                                track={track}
+                                groupIndex={i}
+                                index={ordIdx}
+                                list={orderedTracks}
+                                isActive={currentTrack?.id === track.id}
+                                isPlaying={isPlaying}
+                                isOver={overTrackId === track.id}
+                                isDragging={dragTrackId === track.id}
+                                onLoad={loadAndPlayIndex}
+                                onContextMenu={handleRowContextMenu}
+                                onDragStart={setDragTrackId}
+                                onDragEnd={handleDragRowEnd}
+                                onDragOver={setOverTrackId}
+                                onDrop={handleTrackDrop}
+                              />
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
-                    {g.tracks.map((track, i) => {
-                      const ordIdx = orderedTracks.findIndex((t) => t.id === track.id)
-                      return (
-                        <LibraryGroupRow
-                          key={track.id}
-                          track={track}
-                          groupIndex={i}
-                          index={ordIdx}
-                          list={orderedTracks}
-                          isActive={currentTrack?.id === track.id}
-                          isPlaying={isPlaying}
-                          isOver={overTrackId === track.id}
-                          isDragging={dragTrackId === track.id}
-                          onLoad={loadAndPlayIndex}
-                          onContextMenu={handleRowContextMenu}
-                          onDragStart={setDragTrackId}
-                          onDragEnd={handleDragRowEnd}
-                          onDragOver={setOverTrackId}
-                          onDrop={handleTrackDrop}
-                        />
-                      )
-                    })}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="track-grid">
@@ -4258,7 +4474,8 @@ export default function App() {
                   step="0.5"
                   value={eqPreamp}
                   onChange={(e) => setPreampGain(Number(e.target.value))}
-                  style={{ width: 140 }}
+                  className="eq-range"
+                  style={{ width: 160 }}
                 />
               </div>
               <div className="settings-row">
@@ -4281,7 +4498,8 @@ export default function App() {
                   step="0.05"
                   value={balance}
                   onChange={(e) => setBalance(Number(e.target.value))}
-                  style={{ width: 140 }}
+                  className="eq-range"
+                  style={{ width: 160 }}
                 />
               </div>
 
@@ -4291,35 +4509,12 @@ export default function App() {
                   Bands
                 </label>
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(10, 1fr)',
-                    gap: 6,
-                    background: 'rgba(128,128,128,0.05)',
-                    padding: 12,
-                    borderRadius: 12,
-                    border: '1px solid rgba(128,128,128,0.1)',
-                    minWidth: 0
-                  }}
+                  className="eq-bands-grid"
+                  style={{ minWidth: 0 }}
                 >
                   {eqBands.map((band, idx) => (
-                    <div
-                      key={band.freq}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 6,
-                        minWidth: 0
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 9,
-                          color: 'var(--text-secondary)',
-                          fontVariantNumeric: 'tabular-nums'
-                        }}
-                      >
+                    <div key={band.freq} className="eq-band-cell">
+                      <span className="eq-band-val">
                         {band.gain > 0 ? `+${band.gain.toFixed(0)}` : band.gain.toFixed(0)}
                       </span>
                       <input
@@ -4329,18 +4524,10 @@ export default function App() {
                         step="0.5"
                         value={band.gain}
                         onChange={(e) => setEQBandGain(idx, Number(e.target.value))}
-                        style={{
-                          writingMode: 'vertical-lr',
-                          direction: 'rtl',
-                          height: 80,
-                          width: '100%',
-                          cursor: 'pointer',
-                          accentColor: 'var(--accent)'
-                        }}
+                        className="eq-range-vert"
+                        style={{ height: 76 }}
                       />
-                      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {band.label}
-                      </span>
+                      <span className="eq-band-label">{band.label}</span>
                     </div>
                   ))}
                 </div>
@@ -4386,6 +4573,43 @@ export default function App() {
             </div>
             </section>
 
+            <section id="settings-fullscreen" className="settings-cat">
+            <p className="eyebrow">Fullscreen</p>
+            <div className="settings-section">
+              <div className="settings-row">
+                <div className="settings-row-text">
+                  <div className="settings-row-title">Fullscreen Type</div>
+                  <div className="settings-row-desc">
+                    Full shows the cover, track info and lyrics. Minimalistic shows just the artwork/video.
+                  </div>
+                </div>
+                <div className="seg">
+                  <button data-active={fullscreenMode === 'normal'} onClick={() => setFullscreenMode('normal')}>
+                    Full
+                  </button>
+                  <button data-active={fullscreenMode === 'cover'} onClick={() => setFullscreenMode('cover')}>
+                    Minimalistic
+                  </button>
+                </div>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-text">
+                  <div className="settings-row-title">Ambient Background</div>
+                  <div className="settings-row-desc">
+                    Use ambience in the fullscreen view.
+
+                  </div>
+                </div>
+                <button className="switch-label" onClick={() => setFullscreenAmbience((v) => !v)}>
+                  <span className="switch-track" data-active={fullscreenAmbience}>
+                    <span className="switch-knob" />
+                  </span>
+                  {fullscreenAmbience ? 'On' : 'Off'}
+                </button>
+              </div>
+            </div>
+            </section>
+
             <section id="settings-ambience" className="settings-cat">
             <p className="eyebrow">Fluid Animated Background</p>
             <div className="settings-section">
@@ -4405,6 +4629,40 @@ export default function App() {
               </div>
               {fluidBgEnabled && (
                 <>
+                  <div className="settings-row">
+                    <div className="settings-row-text">
+                      <div className="settings-row-title">Ambient Mode</div>
+                      <div className="settings-row-desc">
+                        Backdrop style — aurora, drifting waves, prism or nebula.
+                      </div>
+                    </div>
+                    <div className="seg">
+                      <button
+                        data-active={fluidBgMode === 'aurora'}
+                        onClick={() => setFluidBgMode('aurora')}
+                      >
+                        Aurora
+                      </button>
+                      <button
+                        data-active={fluidBgMode === 'waves'}
+                        onClick={() => setFluidBgMode('waves')}
+                      >
+                        Waves
+                      </button>
+                      <button
+                        data-active={fluidBgMode === 'prism'}
+                        onClick={() => setFluidBgMode('prism')}
+                      >
+                        Prism
+                      </button>
+                      <button
+                        data-active={fluidBgMode === 'nebula'}
+                        onClick={() => setFluidBgMode('nebula')}
+                      >
+                        Nebula
+                      </button>
+                    </div>
+                  </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
                       <div className="settings-row-title">Blur Radius</div>
@@ -4965,7 +5223,7 @@ export default function App() {
 
             <div className="settings-section" style={{ border: 'none' }}>
               <button
-                className="btn-ghost"
+                className="btn btn-ghost"
                 onClick={handleResetSettings}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
               >
@@ -5237,9 +5495,20 @@ export default function App() {
       {/* FULLSCREEN NOW PLAYING */}
       {isFullscreenCover && currentTrack && (
         <div
-          className={`fullscreen-visualizer${fsUiVisible ? ' fs-ui-visible' : ''}`}
+          className={`fullscreen-visualizer${fsUiVisible ? ' fs-ui-visible' : ''}${fullscreenMode === 'cover' ? ' fs-cover-only' : ''}${fullscreenAmbience && fluidBgEnabled ? ' fs-ambience' : ''}`}
           onMouseMove={wakeFsControls}
         >
+          {fullscreenAmbience && fluidBgEnabled && (
+            <FluidBackgroundLayer
+              cover={currentTrack.cover}
+              opacity={currentTrack.cover ? fluidBgOpacity * 0.4 : fluidBgOpacity}
+              blur={fluidBgBlur}
+              saturation={fluidBgSaturation}
+              duration={fluidAnimDuration}
+              mode={fluidBgMode}
+              softScrim
+            />
+          )}
           <div
             className="fs-chrome fs-chrome-top"
             onMouseEnter={holdFsControls}
@@ -5259,9 +5528,11 @@ export default function App() {
 
           <div
             className={
-              parsedLyrics.length > 0
-                ? 'fullscreen-body'
-                : 'fullscreen-body fullscreen-body-nolyrics'
+              fullscreenMode === 'cover'
+                ? 'fullscreen-body fullscreen-body-nolyrics'
+                : parsedLyrics.length > 0
+                  ? 'fullscreen-body'
+                  : 'fullscreen-body fullscreen-body-nolyrics'
             }
           >
             <div className="fullscreen-cover-side">
@@ -5294,8 +5565,10 @@ export default function App() {
                   )}
                 </div>
               )}
-              <h2
-                style={{
+              {fullscreenMode === 'normal' && (
+                <>
+                  <h2
+                    style={{
                   fontSize: 28,
                   fontWeight: 900,
                   textAlign: 'center',
@@ -5327,11 +5600,12 @@ export default function App() {
                   />
                 </div>
               )}
+                </>
+              )}
             </div>
 
-            {/* Synced Lyrics side — only rendered when the track has lyrics.
-                Without lyrics, the album cover + info center alone on screen. */}
-            {parsedLyrics.length > 0 && (
+            {/* Synced Lyrics side — only rendered in Normal fullscreen type (when the track has lyrics). */}
+            {fullscreenMode === 'normal' && parsedLyrics.length > 0 && (
               <div
                 ref={fullscreenLyricsRef}
                 className="fullscreen-lyrics-scroll"
@@ -5480,7 +5754,7 @@ export default function App() {
             <img
               src={currentTrack.cover}
               alt=""
-              style={{ width: '100%', display: 'block', height: 'auto' }}
+              style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
             />
             <button
               style={{
@@ -5643,7 +5917,7 @@ export default function App() {
                           )}
                         </div>
                         <button
-                          className="btn-ghost"
+                          className="btn btn-ghost btn-sm"
                           style={{ padding: '6px 10px', fontSize: 10 }}
                           onClick={handleSelectCover}
                         >
@@ -5691,7 +5965,7 @@ export default function App() {
                         {lyricStatus}
                       </span>
                       <button
-                        className="btn-ghost"
+                        className="btn btn-ghost btn-sm"
                         style={{ padding: '4px 10px', fontSize: 11 }}
                         disabled={isFetchingLyrics}
                         onClick={() => fetchLyricsApi(pendingUploads[editingIndex])}
