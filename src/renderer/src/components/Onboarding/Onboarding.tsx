@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import {
   Check,
-  ChevronLeft,
   ChevronRight,
   FolderPlus,
   ListMusic,
@@ -164,7 +163,7 @@ const CSS = `
 
   .onb-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 26px 22px; border-top: 1px solid rgba(128,128,128,0.1); }
   .onb-foot-left, .onb-foot-right { display: flex; min-width: 96px; }
-  .onb-foot-right { justify-content: flex-end; }
+  .onb-foot-right { justify-content: flex-end; margin-left: auto; }
   .onb-dots { display: flex; gap: 7px; }
   .onb-dot {
     width: 8px; height: 8px; border-radius: 50%; border: none; cursor: pointer; padding: 0;
@@ -193,7 +192,6 @@ export function Onboarding({
     if (step === totalSteps - 1) onComplete()
     else setStep((s) => s + 1)
   }
-  const back = (): void => setStep((s) => Math.max(0, s - 1))
 
   return (
     <div className="onb-root" role="dialog" aria-modal="true" aria-label="Welcome to omus">
@@ -223,7 +221,8 @@ export function Onboarding({
                 <div className="onb-logo">omus</div>
                 <h1 className="onb-title">Pure local audio</h1>
                 <p className="onb-sub">
-                  Play your music collection offline with live lyrics, custom EQ, and audio reactive visuals. No accounts, no ads, no cloud.
+                  Play your music collection offline with live lyrics, custom EQ, and audio reactive
+                  visuals. No accounts, no ads, no cloud.
                 </p>
                 <button
                   className="btn btn-primary btn-pill btn-accent-glow onb-start"
@@ -241,7 +240,8 @@ export function Onboarding({
                 </span>
                 <h1 className="onb-title">Your files stay where they are</h1>
                 <p className="onb-sub">
-                  omus reads tracks directly from your hard drive. Nothing is moved, modified, or copied.
+                  omus reads tracks directly from your hard drive. Nothing is moved, modified, or
+                  copied.
                 </p>
                 <div className="onb-steps">
                   <div className="onb-step-row">
@@ -294,9 +294,7 @@ export function Onboarding({
                   <Palette size={18} />
                 </span>
                 <h1 className="onb-title">Choose your theme</h1>
-                <p className="onb-sub">
-                  Select a look now or change it later in Settings.
-                </p>
+                <p className="onb-sub">Select a look now or change it later in Settings.</p>
                 <div className="theme-grid onb-theme-grid">
                   {PRESET_THEMES.map((theme) => (
                     <button
@@ -331,7 +329,8 @@ export function Onboarding({
                 </span>
                 <h1 className="onb-title">Interface size</h1>
                 <p className="onb-sub">
-                  Adjust interface scale for your screen. You can also zoom anytime using <b>Ctrl + Scroll</b>.
+                  Adjust interface scale for your screen. You can also zoom anytime using{' '}
+                  <b>Ctrl + Scroll</b>.
                 </p>
                 <div className="onb-scale-options">
                   {SCALE_OPTIONS.map((s) => (
@@ -355,9 +354,7 @@ export function Onboarding({
                   <Check size={28} strokeWidth={3} />
                 </div>
                 <h1 className="onb-title">Ready to play</h1>
-                <p className="onb-sub">
-                  Select a music folder to begin populating your library.
-                </p>
+                <p className="onb-sub">Select a music folder to begin populating your library.</p>
                 <button
                   className="btn btn-primary btn-pill btn-accent-glow onb-start"
                   onClick={onComplete}
@@ -370,9 +367,6 @@ export function Onboarding({
         </div>
 
         <div className="onb-foot">
-          <div className="onb-dots">
-           
-          </div>
           <div className="onb-foot-right">
             {step > 0 && step < totalSteps - 1 ? (
               <button className="btn btn-primary btn-pill" onClick={next}>
