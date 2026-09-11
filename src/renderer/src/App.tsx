@@ -108,6 +108,7 @@ import { LyricLine } from './components/LyricLine'
 import { TitleBar } from './components/TitleBar'
 import { GlobalSearch } from './components/GlobalSearch'
 import { LoadingScreen } from './components/LoadingScreen'
+import { Onboarding } from './components/Onboarding/Onboarding'
 
 // The custom frameless title bar is only shown on Windows (where the native
 // frame is removed); TITLEBAR_H is the reserved strip height in pixels.
@@ -171,6 +172,7 @@ interface SavedSettings {
   railWidth?: number
   globalSearchEnabled?: boolean
   uiScale?: number
+  onboardingDone?: boolean
 }
 
 // Categories shown in the Settings sidebar. Order matches the on-page flow.
@@ -444,6 +446,9 @@ export default function App() {
 
   // ---- Modals / Overlays ----
   const [showCoverModal, setShowCoverModal] = useState(false)
+  // First-run onboarding — shown once for brand-new users, then never again.
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [onboardingDone, setOnboardingDone] = useState(false)
   const [isFullscreenCover, setIsFullscreenCover] = useState(false)
   // Fullscreen "chrome" (top close bar, visualizer, bottom playback controls)
   // is hidden at rest — only the cover + info + lyrics idle on screen. Any
@@ -1078,12 +1083,17 @@ export default function App() {
             if (typeof saved.railWidth === 'number') setRailWidth(saved.railWidth)
             if (typeof saved.globalSearchEnabled === 'boolean')
               setGlobalSearchEnabled(saved.globalSearchEnabled)
+            if (saved.onboardingDone === true) setOnboardingDone(true)
 
             if (saved.resumePlayback !== false && saved.lastTrackId && storedTracks.length > 0) {
               const idx = storedTracks.findIndex((t: Track) => t.id === saved.lastTrackId)
               if (idx >= 0) cueTrack(idx, saved.lastPositionSecs || 0, storedTracks)
             }
           }
+
+          // First run: no settings file exists yet (getSettings returns null) → the user has
+          // never started omus. Show the onboarding tour; completed/skipped users skip it.
+          if (saved === null || saved.onboardingDone === false) setShowOnboarding(true)
         }
       } catch (err) {
         console.error('[App] initialization failed', err)
@@ -1122,6 +1132,8 @@ export default function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = document.activeElement?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      // While the first-run onboarding is open, keep global shortcuts silent.
+      if (showOnboarding) return
 
       if (e.code === 'Space') {
         e.preventDefault()
@@ -1183,7 +1195,8 @@ export default function App() {
     isEqOpen,
     isSleepTimerOpen,
     contextMenu,
-    lyricsOptionsOpen
+    lyricsOptionsOpen,
+    showOnboarding
   ])
 
   // ---- Persist Settings ----
@@ -1234,7 +1247,10 @@ export default function App() {
       railCollapsed,
       railWidth,
       globalSearchEnabled,
-      uiScale
+      uiScale,
+      // Only ever persist `true` (tour finished) — omitted while false so we never
+      // stamp the flag onto existing users' settings and re-trigger the tour.
+      onboardingDone: onboardingDone || undefined
     }),
     [
       currentTheme,
@@ -1281,7 +1297,8 @@ export default function App() {
       railCollapsed,
       railWidth,
       globalSearchEnabled,
-      uiScale
+      uiScale,
+      onboardingDone
     ]
   )
 
@@ -1351,7 +1368,8 @@ export default function App() {
     discordEnabled,
     playCounts,
     recentlyPlayed,
-    uiScale
+    uiScale,
+    onboardingDone
   ])
 
   useEffect(() => {
@@ -1373,6 +1391,12 @@ export default function App() {
       window.removeEventListener('pagehide', flush)
       window.removeEventListener('beforeunload', flush)
     }
+  }, [])
+
+  // Complete / skip the first-run onboarding: hide the tour and persist the flag.
+  const completeOnboarding = useCallback(() => {
+    setShowOnboarding(false)
+    setOnboardingDone(true)
   }, [])
 
   // Save position every 5 seconds during playback
@@ -2434,29 +2458,6 @@ export default function App() {
     setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
-  // Albums view: add every track of an album to a chosen playlist at once.
-  const handleAddAlbumToPlaylist = useCallback(
-    async (tracks: Track[], e: React.ChangeEvent<HTMLSelectElement>) => {
-      const val = e.target.value
-      if (!val || tracks.length === 0) return
-      for (const t of tracks) {
-        await window.api.addTrackToPlaylist(val, t.id)
-      }
-      if (selectedPlaylistId === val) {
-        const plTracks = await window.api.getPlaylistTracks(val)
-        setPlaylistTracks(plTracks)
-      }
-      refreshPlaylistCovers()
-      e.target.value = ''
-      addToast(
-        `Added ${tracks.length} track${tracks.length === 1 ? '' : 's'} to playlist`,
-        undefined,
-        'success'
-      )
-    },
-    [selectedPlaylistId, refreshPlaylistCovers, addToast]
-  )
-
   const selectedPlaylist = playlists.find((p) => p.id === selectedPlaylistId) || null
   const selectedGradient = parseGradient(selectedPlaylist?.cover_gradient)
   const playlistTotalSecs = playlistTracks.reduce((s, t) => s + (t.duration || 0), 0)
@@ -2628,56 +2629,95 @@ export default function App() {
         onDrop={handleDrop}
       >
         {/* HOME VIEW */}
-        {view === 'home' && (
-          <div key="home" className="view-fade home-view">
-            {library.length === 0 ? (
-              <div
-                className="pl-empty"
-                style={{
-                  minHeight: '50vh',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '40px 20px',
-                  border: '1px dashed rgba(128,128,128,0.18)',
-                  borderRadius: 20,
-                  background: 'color-mix(in srgb, var(--card-bg) 40%, transparent)'
-                }}
-              >
-                <div style={{ textAlign: 'center', maxWidth: 440, margin: '0 auto' }}>
-                  <h2
-                    style={{
-                      fontWeight: 900,
-                      fontSize: 24,
-                      marginBottom: 8,
-                      letterSpacing: -0.5,
-                      color: 'var(--text-primary)'
-                    }}
-                  >
-                    Welcome to omus
-                  </h2>
-                  <p
-                    style={{
-                      fontSize: 15,
-                      marginBottom: 24,
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.55
-                    }}
-                  >
-                    <b>Stream offline music, simply.</b>
-                    Import your audio tracks and folders to
-                    get your personalized Home, lyrics sync, visualizers, and more.
-                  </p>
-                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                    <button
-                      className="btn btn-primary btn-pill btn-accent-glow"
-                      onClick={openImportTracks}
-                    >
-                      <Plus size={15} /> Add Tracks
-                    </button>
-                  </div>
-                </div>
-              </div>
+{view === 'home' && (
+  <div key="home" className="view-fade home-view">
+    {library.length === 0 ? (
+      <div
+        className="pl-empty"
+        style={{
+          minHeight: '65vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '48px 24px',
+          borderRadius: 24,
+          background: 'radial-gradient(circle at center, color-mix(in srgb, var(--accent, #3b82f6) 8%, transparent), color-mix(in srgb, var(--card-bg) 60%, transparent))',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+          backdropFilter: 'blur(16px)'
+        }}
+      >
+        <div style={{ textAlign: 'center', maxWidth: 420, width: '100%' }}>
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: 'color-mix(in srgb, var(--accent, #3b82f6) 15%, transparent)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 20,
+              color: 'var(--accent, #3b82f6)',
+              border: '1px solid color-mix(in srgb, var(--accent, #3b82f6) 30%, transparent)'
+            }}
+          >
+            <Sparkles size={28} />
+          </div>
+
+          <h2
+            style={{
+              fontWeight: 800,
+              fontSize: 26,
+              marginBottom: 10,
+              letterSpacing: '-0.02em',
+              color: 'var(--text-primary)'
+            }}
+          >
+            Welcome to omus
+          </h2>
+
+          <p
+            style={{
+              fontSize: 14,
+              marginBottom: 28,
+              color: 'var(--text-secondary)',
+              lineHeight: 1.6
+            }}
+          >
+            Stream offline music, simply.
+            <br />
+            Import your local tracks to activate your home library, synced lyrics, and visualizers.
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button
+              className="btn btn-primary btn-pill btn-accent-glow"
+              onClick={openImportTracks}
+              style={{
+                padding: '12px 28px',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer'
+              }}
+            >
+              <Plus size={18} /> Add Tracks
+            </button>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+            <button
+              className="btn btn-ghost btn-sm btn-pill"
+              onClick={() => setShowOnboarding(true)}
+              style={{ fontSize: 12.5 }}
+            >
+              Not sure where to start?
+            </button>
+          </div>
+        </div>
+</div>
             ) : homeDetail?.kind === 'album' && homeAlbumDetail ? (
               <div className="home-detail">
                 <button
@@ -6142,6 +6182,17 @@ export default function App() {
 
       {/* TOAST NOTIFICATIONS */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {/* FIRST-RUN ONBOARDING — only shown for brand-new users */}
+      {showOnboarding && (
+        <Onboarding
+          currentThemeId={currentTheme.id}
+          onThemeChange={(t) => setCurrentTheme(t)}
+          uiScale={uiScale}
+          onScaleChange={(v) => setUiScale(clampUiScale(v))}
+          onComplete={completeOnboarding}
+        />
+      )}
     </div>
   )
 }
