@@ -54,6 +54,11 @@ export interface CustomAPI {
   windowToggleMaximize: () => Promise<boolean>
   isWindowMaximized: () => Promise<boolean>
   onWindowMaximizeChange: (callback: (maximized: boolean) => void) => () => void
+  // Mini player mode — the whole window collapses into an always-on-top,
+  // draggable cover widget docked to a corner of the screen.
+  enterMiniMode: () => Promise<void>
+  exitMiniMode: () => Promise<void>
+  onMiniModeChange: (callback: (mini: boolean) => void) => () => void
   setZoomFactor?: (factor: number) => void
   getZoomFactor?: () => number
   platform: NodeJS.Platform

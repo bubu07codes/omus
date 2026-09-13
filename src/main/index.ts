@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, protocol, shell, screen } from 'electron'
 import path from 'path'
 import fs from 'fs/promises'
 import { createReadStream, writeFileSync } from 'fs'
@@ -36,6 +36,15 @@ const SETTINGS_PATH = path.join(USER_DATA_PATH, 'settings.json')
 
 let db: Database.Database
 let mainWindow: BrowserWindow | null = null
+
+// Mini-player mode state: the whole window collapses into a small always-on-top,
+// draggable cover widget docked to a corner of the screen. The renderer swaps to
+// a dedicated mini UI while this is active; audio keeps playing because the
+// engine lives in the same renderer (via an in-memory <audio> element).
+const MINI_SIZE = 240
+let miniModeActive = false
+let normalBounds: Electron.Rectangle | null = null
+let wasMaximizedBeforeMini = false
 
 async function initStorage(): Promise<void> {
   await fs.mkdir(MUSIC_STORE_PATH, { recursive: true })
@@ -131,6 +140,13 @@ function createWindow(): void {
   win.on('unmaximize', sendMaxState)
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
+  })
+
+  // If the page reloads (e.g. dev hot-reload) while mini mode is active, push the
+  // current state back down so the renderer immediately shows the mini UI again
+  // instead of the full app crammed into the tiny window.
+  win.webContents.on('did-finish-load', () => {
+    if (!win.isDestroyed()) win.webContents.send('window:mini-mode', miniModeActive)
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -786,6 +802,58 @@ ipcMain.handle('window:toggle-maximize', (event) => {
 
 ipcMain.handle('window:is-maximized', (event) => {
   return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false
+})
+
+// ----------------------------------------------------
+// MINI PLAYER MODE — collapse the window into an
+// always-on-top, draggable cover widget docked to the
+// corner of the screen (Spotify-style mini player).
+// ----------------------------------------------------
+function enterMiniMode(win: BrowserWindow): void {
+  if (miniModeActive || win.isDestroyed()) return
+
+  wasMaximizedBeforeMini = win.isMaximized()
+  if (wasMaximizedBeforeMini) win.unmaximize()
+  normalBounds = win.getBounds()
+
+  // Dock the widget to the bottom-right of the screen the window currently
+  // lives on (16px margin from the work area / taskbar edge).
+  const workArea = screen.getDisplayMatching(normalBounds).workArea
+  const x = workArea.x + workArea.width - MINI_SIZE - 16
+  const y = workArea.y + workArea.height - MINI_SIZE - 16
+
+  win.setAlwaysOnTop(true, 'floating')
+  win.setResizable(false)
+  win.setMaximizable(false)
+  win.setFullScreenable(false)
+  win.setBounds({ x, y, width: MINI_SIZE, height: MINI_SIZE }, false)
+  win.webContents.send('window:mini-mode', true)
+  miniModeActive = true
+}
+
+function exitMiniMode(win: BrowserWindow): void {
+  if (!miniModeActive || win.isDestroyed()) return
+  miniModeActive = false
+
+  win.setAlwaysOnTop(false)
+  win.setResizable(true)
+  win.setMaximizable(true)
+  win.setFullScreenable(true)
+  if (normalBounds) win.setBounds(normalBounds, false)
+  normalBounds = null
+  if (wasMaximizedBeforeMini) win.maximize()
+  wasMaximizedBeforeMini = false
+  win.webContents.send('window:mini-mode', false)
+}
+
+ipcMain.handle('window:enter-mini', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) enterMiniMode(win)
+})
+
+ipcMain.handle('window:exit-mini', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) exitMiniMode(win)
 })
 
 // ----------------------------------------------------

@@ -15,7 +15,8 @@ MPG/3GP/TS...). No accounts, no cloud, no tracking. Features: synced LRC lyrics 
 (LRCLIB), 10-band Web Audio equalizer with presets, seamless crossfade transitions, sleep timer,
 live visualizers, library import/tag editing, playlist management (+ M3U import/export), custom
 themes/fonts/animations, fluid ambient backgrounds, fullscreen now-playing (incl. video mirror),
-Discord Rich Presence, OS media keys, GitHub release checker, drag-and-drop import.
+Discord Rich Presence, OS media keys, GitHub release checker, drag-and-drop import,
+mini player mode (dock the window into an always-on-top corner widget with hover playback controls).
 
 ## 2. Stack (key versions)
 
@@ -259,6 +260,9 @@ Complete `window.api` surface (grouped):
 - **Integrations:** `checkForUpdates()` (fire-and-forget), `updateDiscordPresence(activity)`, `clearDiscordPresence()`
 - **Window:** `windowMinimize()`, `windowClose()`, `windowToggleMaximize()`,
   `isWindowMaximized()`, `onWindowMaximizeChange(cb) → unsubscribe`, `setZoomFactor(f)`, `getZoomFactor()`
+  Mini player mode: `enterMiniMode()`, `exitMiniMode()`, `onMiniModeChange(cb) → unsubscribe`
+  (collapses the window into a fixed-size 240px always-on-top corner widget; renderer
+  swaps to `components/MiniPlayer.tsx`)
 - **Env:** `platform` (NodeJS.Platform), `getSystemInfo()` → `{platform, cpu, cpusCount, totalMemory, freeMemory, userLanguage}` (built with `os` from 'node:os')
 
 ## 9. Renderer — `src/renderer/src`

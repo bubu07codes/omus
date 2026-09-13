@@ -1848,4 +1848,157 @@ export const GLOBAL_CSS = `
   }
   .gs-footer:hover { background: rgba(128,128,128,0.08); }
   .gs-footer svg { flex-shrink: 0; }
+
+  /* ============================================================
+     MINI PLAYER MODE
+     The whole window collapses to an always-on-top, draggable cover
+     widget docked to a corner of the screen (see src/main/index.ts
+     enter/exitMiniMode). The window keeps a fixed 240px size; at rest
+     only the cover is visible and hovering slides a glassy playback
+     panel in. The surface is a drag handle; interactive controls opt
+     out with -webkit-app-region: no-drag.
+     ============================================================ */
+  .mini-player {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #000; overflow: hidden; user-select: none;
+  }
+  .mini-cover { position: absolute; inset: 0; }
+  .mini-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mini-no-cover {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+    background: linear-gradient(135deg, var(--card-bg), var(--sidebar-bg));
+  }
+  .mini-eq {
+    position: absolute; right: 8px; bottom: 8px;
+    display: flex; align-items: flex-end; gap: 3px; height: 13px;
+    background: rgba(0,0,0,0.45); padding: 3px 5px; border-radius: 6px;
+    transition: opacity 0.2s ease;
+  }
+  .mini-eq span { width: 3px; background: var(--accent); border-radius: 1px; animation: eqPulse 0.9s ease-in-out infinite; }
+  .mini-eq span:nth-child(1) { height: 50%; }
+  .mini-eq span:nth-child(2) { height: 100%; animation-delay: 0.2s; }
+  .mini-eq span:nth-child(3) { height: 70%; animation-delay: 0.4s; }
+  .mini-loading-dot {
+    position: absolute; right: 8px; bottom: 8px; width: 9px; height: 9px;
+    border-radius: 50%; background: var(--accent);
+    animation: loadingPulse 0.8s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(0,0,0,0.6);
+  }
+  .mini-player.show .mini-eq,
+  .mini-player.show .mini-loading-dot { opacity: 0; }
+
+  /* Slim drag strip — the whole top edge moves the widget. */
+  .mini-grip {
+    position: absolute; top: 0; left: 0; right: 0; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-app-region: drag; cursor: grab;
+    color: rgba(255,255,255,0.6);
+    background: linear-gradient(to bottom, rgba(0,0,0,0.42), transparent);
+    opacity: 0; transition: opacity 0.18s ease;
+  }
+  .mini-grip:active { cursor: grabbing; }
+  .mini-player.show .mini-grip { opacity: 1; }
+
+  /* Floating glassy panel — slides in over the bottom of the cover. */
+  .mini-panel {
+    position: absolute; left: 6px; right: 6px; bottom: 6px;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 9px 10px 8px;
+    border-radius: 16px;
+    background: rgba(15,15,18,0.6);
+    border: 1px solid rgba(255,255,255,0.13);
+    box-shadow: 0 14px 44px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+    backdrop-filter: blur(16px) saturate(1.25);
+    -webkit-backdrop-filter: blur(16px) saturate(1.25);
+    opacity: 0; transform: translateY(14px);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.26s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  .mini-player.show .mini-panel { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+  .mini-panel-info { min-width: 0; }
+  .mini-title {
+    font-size: 13px; font-weight: 800; color: #fff; letter-spacing: -0.2px;
+    line-height: 1.2; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mini-artist {
+    font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.66);
+    line-height: 1.3; margin-top: 1px; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mini-scrub {
+    position: relative; width: 100%; height: 16px;
+    display: flex; align-items: center; cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  .mini-scrub::before {
+    content: ''; position: absolute; left: 0; right: 0; height: 3px;
+    border-radius: 2px; background: rgba(255,255,255,0.28);
+  }
+  .mini-scrub:hover::before { height: 4px; }
+  .mini-scrub-fill {
+    position: absolute; left: 0; width: 100%; height: 3px;
+    border-radius: 2px; background: var(--accent); transform-origin: left;
+  }
+  .mini-scrub-ball {
+    position: absolute; top: 50%; width: 10px; height: 10px; margin-top: -5px;
+    border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.55);
+    transform: translateX(-50%) scale(0);
+    transition: transform 0.15s ease;
+    pointer-events: none;
+  }
+  .mini-scrub:hover .mini-scrub-ball,
+  .mini-scrub:active .mini-scrub-ball { transform: translateX(-50%) scale(1); }
+  .mini-times {
+    display: flex; justify-content: space-between;
+    font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.6);
+    font-variant-numeric: tabular-nums;
+  }
+  .mini-transport { display: flex; align-items: center; justify-content: center; gap: 24px; }
+  .mini-btn {
+    -webkit-app-region: no-drag;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(255,255,255,0.12); border: none; color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    padding: 0; flex-shrink: 0;
+    transition: background 0.15s ease, transform 0.15s ease, filter 0.15s ease;
+  }
+  .mini-btn:hover { background: rgba(255,255,255,0.26); transform: translateY(-1px) scale(1.06); }
+  .mini-btn:active { transform: scale(0.94); }
+  .mini-play {
+    width: 44px; height: 44px;
+    background: var(--accent); color: var(--bg);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  }
+  .mini-play:hover { background: var(--accent); filter: brightness(1.18); }
+  .mini-actions { display: flex; align-items: center; justify-content: space-between; }
+  .mini-actions-right { display: flex; align-items: center; gap: 6px; }
+
+  /* Hover-revealed volume slider — slides out to the side of the mute
+     button (same placement as the main player bar's volume group). */
+  .mini-volwrap { display: flex; align-items: center; -webkit-app-region: no-drag; }
+  .mini-volslider {
+    width: 0; margin-left: 0; overflow: hidden;
+    opacity: 0; pointer-events: none;
+    transition: width 0.2s ease, opacity 0.18s ease, margin-left 0.2s ease;
+  }
+  .mini-volslider.open { width: 84px; margin-left: 6px; opacity: 1; pointer-events: auto; }
+  .mini-volslider input[type='range'] {
+    display: block; width: 100%; height: 4px; border-radius: 2px;
+    appearance: none; -webkit-appearance: none;
+    background: rgba(255,255,255,0.26); outline: none; cursor: pointer;
+  }
+  .mini-volslider input[type='range']::-webkit-slider-thumb {
+    appearance: none; -webkit-appearance: none;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.55);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .mini-volslider input[type='range']:hover::-webkit-slider-thumb {
+    transform: scale(1.15); background: var(--accent);
+  }
+  .mini-close:hover { background: rgba(255,90,90,0.4); }
 `

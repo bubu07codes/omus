@@ -57,14 +57,23 @@
     "typescript": "^5.9.3",
     "vite": "^7.2.6"
   },
-  "build": {
-  "appId": "com.omus.app",
-  "productName": "omus",
-  "win": {
-    "target": ["nsis"]
-  },
-  "nsis": {
-    "artifactName": "install-omus.${ext}"
+    "build": {
+    "appId": "com.omus.app",
+    "productName": "omus",
+    "asarUnpack": [
+      "resources/**",
+      "**/*.node"
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "artifactName": "install-omus.${ext}"
+    },
+    "linux": {
+      "target": ["AppImage", "deb", "snap"],
+      "category": "AudioVideo",
+      "artifactName": "${productName}-${version}.${ext}"
+    }
   }
-}
 }

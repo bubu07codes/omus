@@ -75,6 +75,17 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.removeListener('window:maximized', listener)
     }
   },
+  // Mini player mode — the whole window collapses into an always-on-top,
+  // draggable cover widget docked to a corner of the screen.
+  enterMiniMode: () => ipcRenderer.invoke('window:enter-mini'),
+  exitMiniMode: () => ipcRenderer.invoke('window:exit-mini'),
+  onMiniModeChange: (callback: (mini: boolean) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, mini: boolean) => callback(mini)
+    ipcRenderer.on('window:mini-mode', listener)
+    return () => {
+      ipcRenderer.removeListener('window:mini-mode', listener)
+    }
+  },
   setZoomFactor: (factor: number) => {
     try {
       webFrame.setZoomFactor(factor)

@@ -62,6 +62,7 @@ import {
   Code2,
   PanelLeftClose,
   PanelLeftOpen,
+  PictureInPicture2,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react'
@@ -106,6 +107,7 @@ import {
 } from './components/TrackRows'
 import { LyricLine } from './components/LyricLine'
 import { TitleBar } from './components/TitleBar'
+import { MiniPlayer } from './components/MiniPlayer'
 import { GlobalSearch } from './components/GlobalSearch'
 import { LoadingScreen } from './components/LoadingScreen'
 import { Onboarding } from './components/Onboarding/Onboarding'
@@ -450,6 +452,10 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingDone, setOnboardingDone] = useState(false)
   const [isFullscreenCover, setIsFullscreenCover] = useState(false)
+  // Mini mode: the whole window collapses into the always-on-top corner widget.
+  // The state mirrors the main process (see src/main/index.ts enter/exitMiniMode);
+  // setting it here immediately swaps the UI, the IPC event keeps it authoritative.
+  const [isMini, setIsMini] = useState(false)
   // Fullscreen "chrome" (top close bar, visualizer, bottom playback controls)
   // is hidden at rest — only the cover + info + lyrics idle on screen. Any
   // cursor movement wakes it, and it fades again after a few seconds of rest.
@@ -816,6 +822,24 @@ export default function App() {
     setIsFullscreenCover(false)
   }
 
+  // ---- Mini player mode ----
+  // Dock/undock the window. The main process shrinks the window to an
+  // always-on-top corner widget; this renderer then renders the MiniPlayer UI.
+  const handleToggleMini = useCallback(() => {
+    if (isMini) {
+      setIsMini(false)
+      void window.api.exitMiniMode()
+      return
+    }
+    // Never leave the fullscreen now-playing view open inside the tiny window.
+    // (Inlined closeFullscreen so the callback keeps a clean, stable dep list.)
+    clearFsHideTimer()
+    setFsUiVisible(false)
+    setIsFullscreenCover(false)
+    setIsMini(true)
+    void window.api.enterMiniMode()
+  }, [isMini])
+
   // MediaSession position state
   useEffect(() => {
     if ('mediaSession' in navigator && duration > 0) {
@@ -1135,6 +1159,26 @@ export default function App() {
       // While the first-run onboarding is open, keep global shortcuts silent.
       if (showOnboarding) return
 
+      // In mini mode only the transport-relevant shortcuts stay active; view
+      // navigation / fullscreen / settings keys would otherwise act on the
+      // hidden full UI while the tiny widget is on screen.
+      if (isMini) {
+        if (e.code === 'Space') {
+          e.preventDefault()
+          togglePlay()
+        } else if (e.code === 'ArrowLeft') {
+          e.preventDefault()
+          e.shiftKey ? handlePrev() : seekRelative(-5)
+        } else if (e.code === 'ArrowRight') {
+          e.preventDefault()
+          e.shiftKey ? handleNext() : seekRelative(5)
+        } else if (e.key === 'm' || e.key === 'M') {
+          e.preventDefault()
+          toggleMute()
+        }
+        return
+      }
+
       if (e.code === 'Space') {
         e.preventDefault()
         togglePlay()
@@ -1196,7 +1240,8 @@ export default function App() {
     isSleepTimerOpen,
     contextMenu,
     lyricsOptionsOpen,
-    showOnboarding
+    showOnboarding,
+    isMini
   ])
 
   // ---- Persist Settings ----
@@ -1306,6 +1351,13 @@ export default function App() {
   useEffect(() => {
     buildSettingsRef.current = buildSettings
   })
+
+  // Mini mode is driven by the main process (window enter/exit handlers); keep
+  // this renderer in sync so a reload while docked lands straight on the mini UI.
+  useEffect(() => {
+    if (!window.api?.onMiniModeChange) return
+    return window.api.onMiniModeChange((mini) => setIsMini(mini))
+  }, [])
 
   // Apply the UI scale to Electron's webFrame so the whole interface scales.
   useEffect(() => {
@@ -2517,6 +2569,39 @@ export default function App() {
     '--font': activeFontFamily,
     '--titlebar-h': `${TITLEBAR_H}px`
   } as React.CSSProperties
+
+  // ---- Mini mode: dedicated ultra-light UI ----
+  // The main process collapses the window into the always-on-top corner widget.
+  // Render only the MiniPlayer and skip all the heavy UI (fluid background,
+  // visualizer canvases, long lists, modals) so nothing keeps animating inside
+  // the tiny window. Playback is untouched — the audio engine owns an in-memory
+  // <audio> element, so music keeps streaming while the window is small.
+  if (isMini) {
+    return (
+      <div className="app-shell" data-anim={currentAnim.id} style={rootStyle}>
+        <style>{GLOBAL_CSS}</style>
+        <style>{currentAnim.globalCss}</style>
+        {currentTheme.customCss && <style>{currentTheme.customCss}</style>}
+        <MiniPlayer
+          track={currentTrack}
+          isPlaying={isPlaying}
+          isLoading={isLoading}
+          currentTime={currentTime}
+          duration={duration}
+          isMuted={isMuted}
+          volume={sliderVal}
+          onTogglePlay={() => void togglePlay()}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          onSeek={(t) => seek(t)}
+          onToggleMute={toggleMute}
+          onVolumeChange={(v) => handleVolumeChange(v)}
+          onRestore={handleToggleMini}
+          onClose={() => window.api.windowClose()}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="app-shell" data-anim={currentAnim.id} style={rootStyle}>
@@ -5528,6 +5613,14 @@ export default function App() {
             title="Fullscreen Now Playing (F)"
           >
             <Maximize2 size={17} />
+          </button>
+          <button
+            className="sp-btn-icon"
+            onClick={handleToggleMini}
+            title="Mini player"
+            aria-label="Dock as mini player"
+          >
+            <PictureInPicture2 size={17} />
           </button>
         </div>
       </footer>
