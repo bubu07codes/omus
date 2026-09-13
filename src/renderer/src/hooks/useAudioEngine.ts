@@ -43,6 +43,38 @@ export const EQ_PRESETS: EQPreset[] = [
   { id: 'speech', name: 'Speech', preamp: -0.5, gains: [-1, 0, 1, 2.5, 4, 4, 3.5, 2.5, 1.5, 0] }
 ]
 
+// ---------------------------------------------------------------------------
+// OS MediaSession artwork
+// ---------------------------------------------------------------------------
+// Chromium only accepts http(s), data and blob URLs as MediaImage src. Disk
+// backed covers are exposed as omus-cover:// URLs, so those are fetched through
+// the privileged protocol and handed to the OS as a data: URL instead.
+const MEDIA_ARTWORK_SAFE = /^(https?:|data:|blob:)/i
+
+function mediaArtworkFor(src: string): Array<{ src: string; sizes: string; type: string }> {
+  return MEDIA_ARTWORK_SAFE.test(src)
+    ? [{ src, sizes: '512x512', type: 'image/png' }]
+    : []
+}
+
+async function mediaArtworkDataUrl(src: string): Promise<string | null> {
+  try {
+    const res = await fetch(src)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    const type = blob.type.startsWith('image/') ? blob.type : 'image/jpeg'
+    let bin = ''
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      const chunk = Array.from(bytes.subarray(i, Math.min(i + 0x8000, bytes.length)))
+      bin += String.fromCharCode(...chunk)
+    }
+    return `data:${type};base64,${btoa(bin)}`
+  } catch {
+    return null
+  }
+}
+
 export function useAudioEngine(
   onTrackEnded: () => void,
   onPrevTrack?: () => void,
@@ -270,17 +302,35 @@ export function useAudioEngine(
       }
 
       // Sync OS MediaSession (guarded — an invalid artwork URL or missing
-      // MediaMetadata must never take down the whole player).
+      // MediaMetadata must never take down the whole player). Disk-backed
+      // covers arrive as omus-cover:// URLs; Chromium's MediaImage only accepts
+      // http(s)/data/blob srcs, so those are fetched through the privileged
+      // protocol and re-applied as a data: URL right after.
       if ('mediaSession' in navigator) {
         try {
           navigator.mediaSession.metadata = new MediaMetadata({
             title: track.title,
             artist: track.artist || 'Unknown Artist',
             album: track.album || '',
-            artwork: track.cover ? [{ src: track.cover, sizes: '512x512', type: 'image/png' }] : []
+            artwork: mediaArtworkFor(track.cover || '')
           })
         } catch {
           /* non-fatal */
+        }
+        if (track.cover && !MEDIA_ARTWORK_SAFE.test(track.cover)) {
+          void mediaArtworkDataUrl(track.cover).then((dataUrl) => {
+            if (!dataUrl) return
+            try {
+              navigator.mediaSession.metadata = new MediaMetadata({
+                title: track.title,
+                artist: track.artist || 'Unknown Artist',
+                album: track.album || '',
+                artwork: [{ src: dataUrl, sizes: '512x512', type: 'image/png' }]
+              })
+            } catch {
+              /* non-fatal */
+            }
+          })
         }
       }
     },

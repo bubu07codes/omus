@@ -21,7 +21,8 @@ export function initDatabaseSchema(db: Database.Database): void {
       cover TEXT,
       lyrics TEXT,
       lyrics_offset INTEGER DEFAULT 0,
-      added_at INTEGER
+      added_at INTEGER,
+      cover_path TEXT
     );
     CREATE TABLE IF NOT EXISTS playlists (
       id TEXT PRIMARY KEY,
@@ -44,6 +45,7 @@ export function initDatabaseSchema(db: Database.Database): void {
   const trColNames = new Set(trCols.map((c) => c.name))
   if (!trColNames.has('lyrics_offset'))
     db.exec(`ALTER TABLE tracks ADD COLUMN lyrics_offset INTEGER DEFAULT 0`)
+  if (!trColNames.has('cover_path')) db.exec(`ALTER TABLE tracks ADD COLUMN cover_path TEXT`)
   const plCols = db.prepare(`PRAGMA table_info(playlists)`).all() as { name: string }[]
   const plColNames = new Set(plCols.map((c) => c.name))
   if (!plColNames.has('cover_type')) db.exec(`ALTER TABLE playlists ADD COLUMN cover_type TEXT`)

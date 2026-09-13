@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test'
 import path from 'path'
 import os from 'os'
 import fs from 'fs/promises'
+import { createHash } from 'crypto'
 
 /**
  * Smoke tests for the whole omus app.
@@ -44,6 +45,35 @@ function makeWavBytes(): Uint8Array {
     view.setInt16(44 + i * 2, Math.floor(Math.sin(i / 20) * 7000), true)
   }
   return buf
+}
+
+/** Builds an MP3 with a tiny embedded ID3v2.3 APIC cover (22-byte JPEG). */
+function makeCoverMp3Bytes(): Buffer {
+  const mime = 'image/jpeg'
+  const description = ''
+  const picture = Buffer.from([
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+    0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9
+  ])
+  const encoder = Buffer.from([0])
+  const frameData = Buffer.concat([
+    encoder,
+    Buffer.from(mime + '\0', 'latin1'),
+    Buffer.from([0x03]),
+    Buffer.from(description + '\0', 'latin1'),
+    picture
+  ])
+  const frame = Buffer.alloc(10 + frameData.length)
+  frame.set(Buffer.from('APIC', 'latin1'), 0)
+  const fv = new DataView(frame.buffer, 0)
+  fv.setUint32(4, frameData.length, false)
+  fv.setUint16(8, 0, false)
+  frame.set(frameData, 10)
+
+  const syncsafe = (n: number) =>
+    Buffer.from([(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f])
+  const tag = Buffer.concat([Buffer.from('ID3', 'latin1'), Buffer.from([3, 0, 0]), syncsafe(frame.length)])
+  return Buffer.concat([tag, frame, Buffer.alloc(512, 0x55)])
 }
 
 test.describe('omus app smoke tests', () => {
@@ -241,6 +271,9 @@ test.describe('omus app smoke tests', () => {
         wav
       )
     }
+    // One MP3 with an embedded cover — exercises the disk-backed cover pipeline.
+    const mp3Source = path.join(musicDir, 'cover-song.mp3')
+    await fs.writeFile(mp3Source, makeCoverMp3Bytes())
     // Junk that must be filtered out (non-media extensions) — never crash on.
     await fs.writeFile(path.join(musicDir, 'notes.txt'), 'not audio')
     await fs.writeFile(path.join(musicDir, 'readme.md'), '# not audio')
@@ -254,9 +287,56 @@ test.describe('omus app smoke tests', () => {
         musicDir
       )
       const tracks = await invoke<Array<{ title: string; duration: number }>>('parseFolder')
-      expect(tracks).toHaveLength(WAV_COUNT)
-      expect(tracks.every((t) => t.title.startsWith('track-'))).toBe(true)
-      expect(tracks.every((t) => t.duration === 1)).toBe(true)
+      expect(tracks).toHaveLength(WAV_COUNT + 1)
+      expect(tracks.filter((t) => t.title.startsWith('track-'))).toHaveLength(WAV_COUNT)
+      expect(tracks.find((t) => t.title === 'cover-song')).toBeDefined()
+
+      // Save the scanned folder — the exact action that used to crash on big
+      // libraries because every base64 cover was held in memory + sent via IPC.
+      const saved = await invoke<Array<{ id: string; filename: string; cover: string }>>(
+        'saveTracks',
+        tracks
+      )
+      expect(saved).toHaveLength(WAV_COUNT + 1)
+      expect(saved.filter((s) => s.filename.endsWith('.wav')).every((s) => s.cover === '')).toBe(true)
+
+      // The MP3 cover went to <OmusLibrary>/covers/<sha1-of-id>.jpg and is
+      // served back through the omus-cover:// protocol as a tiny URL.
+      const savedMp3 = saved.find((s) => s.filename === 'cover-song.mp3')
+      expect(savedMp3!.cover).toMatch(/^omus-cover:\/\/cover\?path=/)
+      const coverName = `${createHash('sha1').update(mp3Source).digest('hex')}.jpg`
+      await fs.access(path.join(dataDir, 'OmusLibrary', 'covers', coverName))
+
+      const fetched = await window.evaluate(async (coverUrl: string) => {
+        const res = await fetch(coverUrl)
+        return res.ok
+          ? { ok: true, bytes: (await res.arrayBuffer()).byteLength }
+          : { ok: false, bytes: 0 }
+      }, savedMp3!.cover)
+      expect(fetched.ok).toBe(true)
+      expect(fetched.bytes).toBe(22)
+
+      // Same fetch→data: URL conversion the renderer uses for the OS media
+      // session artwork (MediaImage only accepts http/https/data/blob srcs).
+      const dataUrl = await window.evaluate(async (coverUrl: string) => {
+        const res = await fetch(coverUrl)
+        if (!res.ok) return ''
+        const blob = await res.blob()
+        const bytes = new Uint8Array(await blob.arrayBuffer())
+        let bin = ''
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          const chunk = Array.from(bytes.subarray(i, Math.min(i + 0x8000, bytes.length)))
+          bin += String.fromCharCode(...chunk)
+        }
+        return `data:${blob.type};base64,${btoa(bin)}`
+      }, savedMp3!.cover)
+      expect(dataUrl).toMatch(/^data:image\/jpeg;base64,/)
+      expect(Buffer.from(dataUrl.split(',')[1] || '', 'base64').length).toBe(22)
+
+      // The library reloads with covers as URLs, no embedded base64 anywhere.
+      const library = await invoke<Array<{ cover: string }>>('getLibrary')
+      expect(library).toHaveLength(WAV_COUNT + 1)
+      expect(library.some((t) => t.cover.startsWith('omus-cover://'))).toBe(true)
 
       // The file logger must have written its startup line to userData/logs/app.log.
       const logContent = await fs.readFile(path.join(dataDir, 'logs', 'app.log'), 'utf-8')

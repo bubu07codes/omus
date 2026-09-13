@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, protocol, shell, screen } from 'el
 import path from 'path'
 import fs from 'fs/promises'
 import { createReadStream, writeFileSync } from 'fs'
+import { createHash } from 'crypto'
 import { Readable } from 'stream'
 import Database from 'better-sqlite3'
 import {
@@ -28,12 +29,24 @@ protocol.registerSchemesAsPrivileged([
       stream: true,
       bypassCSP: true
     }
+  },
+  {
+    scheme: 'omus-cover',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+      bypassCSP: true
+    }
   }
 ])
 
 // Overridable in tests so the smoke suite never touches the real library.
 const USER_DATA_PATH = process.env.OMUS_USER_DATA_PATH || app.getPath('userData')
 const MUSIC_STORE_PATH = path.join(USER_DATA_PATH, 'OmusLibrary')
+const COVERS_DIR = path.join(MUSIC_STORE_PATH, 'covers')
 const DB_PATH = path.join(USER_DATA_PATH, 'omus.db')
 const SETTINGS_PATH = path.join(USER_DATA_PATH, 'settings.json')
 
@@ -57,6 +70,7 @@ let wasMaximizedBeforeMini = false
 
 async function initStorage(): Promise<void> {
   await fs.mkdir(MUSIC_STORE_PATH, { recursive: true })
+  await fs.mkdir(COVERS_DIR, { recursive: true })
   db = new Database(DB_PATH)
   initDatabaseSchema(db)
 }
@@ -262,24 +276,115 @@ async function parseAudioFile(
   }
 }
 
+const COVER_EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/bmp': '.bmp',
+  'image/tiff': '.tif',
+  'image/avif': '.avif'
+}
+
+/** Cover art is stored on disk and served through the `omus-cover://` protocol. */
+function coverUrl(coverName: string): string {
+  return `omus-cover://cover?path=${encodeURIComponent(coverName)}`
+}
+
 /**
- * Extracts only the embedded cover art of a file as a base64 data URL.
- * Kept separate from `parseAudioFile` so that folder scans can defer the
- * (memory heavy) artwork to save-time instead of holding every cover of a
- * large library in RAM at once.
+ * Maps a DB row to the shape the renderer expects: disk-backed covers become
+ * tiny `omus-cover://` URLs so <img> can stream them lazily. This keeps cover
+ * bytes out of IPC payloads (which used to exhaust memory on large libraries).
  */
-async function extractCover(sourcePath: string): Promise<string> {
+function toTrackView(row: unknown): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return {}
+  const r = row as { cover?: string; cover_path?: string | null }
+  if (r.cover_path) {
+    return { ...r, cover_path: undefined, cover: coverUrl(r.cover_path) }
+  }
+  return r
+}
+
+/**
+ * Extracts only the embedded cover art of a file as raw bytes + mime type.
+ * Kept separate from `parseAudioFile` so folder scans can defer the
+ * (memory heavy) artwork to save-time, one file at a time.
+ */
+async function extractCoverPicture(
+  sourcePath: string
+): Promise<{ mime: string; data: Buffer } | null> {
   try {
     const { parseFile } = await import('music-metadata')
     const metadata = await parseFile(sourcePath, { duration: false, skipCovers: false })
     const pic = metadata.common.picture?.[0]
-    return pic ? `data:${pic.format};base64,${pic.data.toString('base64')}` : ''
+    if (!pic || !pic.data?.length) return null
+    const mime = pic.format?.startsWith('image/') ? pic.format : 'image/jpeg'
+    return { mime, data: Buffer.from(pic.data) }
   } catch {
-    return ''
+    return null
   }
 }
 
-async function saveSingleTrack(t: ParsedTrack): Promise<SavedTrack | null> {
+/**
+ * Writes the embedded cover of a file to the covers directory and returns the
+ * short file name to store in the DB (or null when the file has no artwork).
+ */
+async function persistCover(trackId: string, sourcePath: string): Promise<string | null> {
+  try {
+    const pic = await extractCoverPicture(sourcePath)
+    if (!pic) return null
+    const ext = COVER_EXT_BY_MIME[pic.mime] || '.jpg'
+    const name = `${createHash('sha1').update(trackId).digest('hex')}${ext}`
+    await fs.writeFile(path.join(COVERS_DIR, name), pic.data)
+    return name
+  } catch {
+    return null
+  }
+}
+
+/**
+ * One-time background migration: moves covers that older builds stored inline
+ * (base64 in the `cover` column) to the covers directory. Runs lazily after
+ * startup so big libraries are never loaded into memory at once, and so list
+ * operations can't trigger the same out-of-memory crash for upgraded users.
+ */
+async function migrateLegacyCoversToDisk(): Promise<void> {
+  try {
+    const cols = db.prepare(`PRAGMA table_info(tracks)`).all() as { name: string }[]
+    if (!cols.some((c) => c.name === 'cover_path')) return
+
+    const rows = db.prepare(
+      `SELECT id, cover FROM tracks WHERE cover != '' AND cover_path IS NULL`
+    )
+    const update = db.prepare(`UPDATE tracks SET cover = '', cover_path = ? WHERE id = ?`)
+
+    let migrated = 0
+    for (const row of rows.iterate() as IterableIterator<{ id: string; cover: string }>) {
+      const parsed = /^data:([^;]+);base64,(.+)$/s.exec(row.cover)
+      if (!parsed) continue
+      const buf = Buffer.from(parsed[2], 'base64')
+      if (!buf.length) continue
+      const ext = COVER_EXT_BY_MIME[parsed[1]] || '.jpg'
+      const name = `${createHash('sha1').update(row.id).digest('hex')}${ext}`
+      try {
+        await fs.writeFile(path.join(COVERS_DIR, name), buf)
+        update.run(name, row.id)
+        migrated++
+      } catch {
+        // Keep the inline cover on failure; migration is best-effort.
+      }
+    }
+    if (migrated > 0) logInfo(`Migrated ${migrated} inline covers to disk`)
+  } catch {
+    /* best-effort */
+  }
+}
+
+async function saveSingleTrack(
+  t: ParsedTrack,
+  coverPath: string | null = null
+): Promise<SavedTrack | null> {
   try {
     const targetPath = t.sourcePath
     const trackRecord = {
@@ -293,13 +398,14 @@ async function saveSingleTrack(t: ParsedTrack): Promise<SavedTrack | null> {
       cover: t.cover,
       lyrics: t.lyrics,
       lyrics_offset: t.lyrics_offset ?? 0,
-      added_at: Date.now()
+      added_at: Date.now(),
+      cover_path: coverPath
     }
 
     db.prepare(
       `
-      INSERT OR REPLACE INTO tracks (id, filename, filepath, title, artist, album, duration, cover, lyrics, lyrics_offset, added_at)
-      VALUES (@id, @filename, @filepath, @title, @artist, @album, @duration, @cover, @lyrics, @lyrics_offset, @added_at)
+      INSERT OR REPLACE INTO tracks (id, filename, filepath, title, artist, album, duration, cover, lyrics, lyrics_offset, added_at, cover_path)
+      VALUES (@id, @filename, @filepath, @title, @artist, @album, @duration, @cover, @lyrics, @lyrics_offset, @added_at, @cover_path)
     `
     ).run(trackRecord)
 
@@ -330,7 +436,10 @@ async function showSaveDialog(
 }
 
 ipcMain.handle('library:get', () => {
-  return db.prepare('SELECT * FROM tracks ORDER BY added_at DESC').all()
+  return db
+    .prepare('SELECT * FROM tracks ORDER BY added_at DESC')
+    .all()
+    .map(toTrackView)
 })
 
 ipcMain.handle('library:parse-uploads', async (event) => {
@@ -461,23 +570,33 @@ ipcMain.handle('library:select-cover', async (event) => {
 ipcMain.handle('library:save-tracks', async (_, tracks: ParsedTrack[]) => {
   const saved: SavedTrack[] = []
   for (const t of tracks) {
-    // Tracks imported without artwork (folder scans) get their embedded cover
-    // extracted here, one file at a time, so memory stays bounded.
-    let record = t
+    // Tracks imported without artwork (folder scans) get their cover written
+    // to disk here — one file at a time — and are returned to the renderer as
+    // tiny omus-cover:// URLs instead of megabytes of base64 text.
+    let coverPath: string | null = null
     if (!t.cover) {
-      const cover = await extractCover(t.sourcePath)
-      if (cover) record = { ...t, cover }
+      coverPath = await persistCover(t.sourcePath, t.sourcePath)
     }
-    const rec = await saveSingleTrack(record)
-    if (rec) saved.push(rec)
+    const rec = await saveSingleTrack(t, coverPath)
+    if (rec) saved.push(toTrackView(rec) as unknown as SavedTrack)
   }
   return saved
 })
 
 ipcMain.handle('library:delete-track', async (_, trackId: string) => {
   try {
+    const existing = db
+      .prepare('SELECT cover_path FROM tracks WHERE id = ?')
+      .get(trackId) as { cover_path?: string | null } | undefined
     db.prepare('DELETE FROM playlist_tracks WHERE track_id = ?').run(trackId)
     db.prepare('DELETE FROM tracks WHERE id = ?').run(trackId)
+    if (existing?.cover_path) {
+      try {
+        await fs.unlink(path.join(COVERS_DIR, existing.cover_path))
+      } catch {
+        // Orphaned cover files are harmless.
+      }
+    }
     return true
   } catch {
     return false
@@ -619,6 +738,7 @@ ipcMain.handle('playlists:get-tracks', (_, playlistId: string) => {
   `
     )
     .all(playlistId)
+    .map(toTrackView)
 })
 
 ipcMain.handle(
@@ -669,14 +789,17 @@ ipcMain.handle('playlists:covers', () => {
     const rows = db
       .prepare(
         `
-      SELECT t.cover FROM tracks t
+      SELECT t.cover, t.cover_path FROM tracks t
       JOIN playlist_tracks pt ON t.id = pt.track_id
-      WHERE pt.playlist_id = ? AND t.cover IS NOT NULL AND t.cover != ''
+      WHERE pt.playlist_id = ? AND (
+        (t.cover IS NOT NULL AND t.cover != '') OR
+        (t.cover_path IS NOT NULL AND t.cover_path != '')
+      )
       LIMIT 4
     `
       )
-      .all(pl.id) as { cover: string }[]
-    map[pl.id] = rows.map((r) => r.cover)
+      .all(pl.id) as { cover: string; cover_path?: string | null }[]
+    map[pl.id] = rows.map((r) => toTrackView(r).cover as string)
   }
   return map
 })
@@ -892,6 +1015,46 @@ ipcMain.on('discord:clear', () => {
 // ----------------------------------------------------
 
 app.whenReady().then(async () => {
+  protocol.handle('omus-cover', async (request) => {
+    try {
+      const url = new URL(request.url)
+      const rawName = url.searchParams.get('path')
+      if (!rawName) {
+        return new Response('Not found', { status: 404 })
+      }
+      const name = path.basename(decodeURIComponent(rawName))
+      if (!name || name === '.' || name === '..') {
+        return new Response('Forbidden', { status: 403 })
+      }
+      const coverFile = path.join(COVERS_DIR, name)
+      if (path.resolve(coverFile) !== path.resolve(COVERS_DIR, name)) {
+        return new Response('Forbidden', { status: 403 })
+      }
+      const data = await fs.readFile(coverFile)
+      const ext = path.extname(name).toLowerCase()
+      const contentType =
+        {
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.webp': 'image/webp',
+          '.gif': 'image/gif',
+          '.bmp': 'image/bmp',
+          '.tif': 'image/tiff',
+          '.avif': 'image/avif'
+        }[ext] || 'application/octet-stream'
+      return new Response(data as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        }
+      })
+    } catch {
+      return new Response('Cover error', { status: 500 })
+    }
+  })
+
   protocol.handle('omus-media', async (request) => {
     try {
       const url = new URL(request.url)
@@ -952,6 +1115,12 @@ app.whenReady().then(async () => {
 
   await initStorage()
   createWindow()
+
+  // Move any legacy inline (base64) covers to disk in the background so large
+  // upgraded libraries never ship megabyte-sized covers over IPC.
+  setTimeout(() => {
+    void migrateLegacyCoversToDisk()
+  }, 500)
 
   logInfo(`App started (v${app.getVersion()}, ${process.platform}, userData=${USER_DATA_PATH})`)
 

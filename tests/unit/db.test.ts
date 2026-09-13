@@ -31,7 +31,8 @@ describe('initDatabaseSchema', () => {
         'cover',
         'lyrics',
         'lyrics_offset',
-        'added_at'
+        'added_at',
+        'cover_path'
       ])
     )
     expect(columnNames(db, 'playlists')).toEqual(
@@ -45,7 +46,7 @@ describe('initDatabaseSchema', () => {
   it('is idempotent (safe to run twice)', () => {
     initDatabaseSchema(db)
     initDatabaseSchema(db)
-    expect(columnNames(db, 'tracks')).toHaveLength(11)
+    expect(columnNames(db, 'tracks')).toHaveLength(12)
     expect(db.prepare('SELECT count(*) FROM tracks').get()).toEqual({ 'count(*)': 0 })
   })
 
