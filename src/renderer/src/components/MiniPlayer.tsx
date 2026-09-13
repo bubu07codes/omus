@@ -8,7 +8,6 @@ import {
   Volume2,
   VolumeX,
   Music,
-  X,
   GripHorizontal
 } from 'lucide-react'
 import type { Track } from '../types'
@@ -56,7 +55,7 @@ export function MiniPlayer({
   onToggleMute,
   onVolumeChange,
   onRestore,
-  onClose
+  onClose: _onClose
 }: MiniPlayerProps): React.ReactElement {
   const scrubRef = useRef<HTMLDivElement | null>(null)
   const [hovered, setHovered] = useState(false)

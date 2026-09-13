@@ -13,7 +13,7 @@ interface GitHubRelease {
   prerelease?: boolean
 }
 
-function parseVersion(v: string): number[] {
+export function parseVersion(v: string): number[] {
   return v
     .replace(/^v/i, '')
     .split('-')[0]
@@ -21,7 +21,7 @@ function parseVersion(v: string): number[] {
     .map((n) => parseInt(n, 10) || 0)
 }
 
-function isNewer(current: number[], latest: number[]): boolean {
+export function isNewer(current: number[], latest: number[]): boolean {
   const len = Math.max(current.length, latest.length)
   for (let i = 0; i < len; i++) {
     const a = current[i] || 0

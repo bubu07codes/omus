@@ -11,6 +11,8 @@ import {
   type DiscordActivity
 } from './discordRPC'
 import { checkForUpdates } from './updater'
+import { initDatabaseSchema } from './db'
+import { initLogger, logError, logInfo } from './logger'
 
 app.name = 'omus'
 
@@ -29,18 +31,25 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-const USER_DATA_PATH = app.getPath('userData')
+// Overridable in tests so the smoke suite never touches the real library.
+const USER_DATA_PATH = process.env.OMUS_USER_DATA_PATH || app.getPath('userData')
 const MUSIC_STORE_PATH = path.join(USER_DATA_PATH, 'OmusLibrary')
 const DB_PATH = path.join(USER_DATA_PATH, 'omus.db')
 const SETTINGS_PATH = path.join(USER_DATA_PATH, 'settings.json')
 
+initLogger(USER_DATA_PATH)
+
+// Capture unexpected errors to the log file — the app must never die silently.
+process.on('uncaughtException', (err) => {
+  logError('Uncaught exception', err)
+})
+process.on('unhandledRejection', (err) => {
+  logError('Unhandled promise rejection', err)
+})
+
 let db: Database.Database
 let mainWindow: BrowserWindow | null = null
 
-// Mini-player mode state: the whole window collapses into a small always-on-top,
-// draggable cover widget docked to a corner of the screen. The renderer swaps to
-// a dedicated mini UI while this is active; audio keeps playing because the
-// engine lives in the same renderer (via an in-memory <audio> element).
 const MINI_SIZE = 240
 let miniModeActive = false
 let normalBounds: Electron.Rectangle | null = null
@@ -49,52 +58,10 @@ let wasMaximizedBeforeMini = false
 async function initStorage(): Promise<void> {
   await fs.mkdir(MUSIC_STORE_PATH, { recursive: true })
   db = new Database(DB_PATH)
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS tracks (
-      id TEXT PRIMARY KEY,
-      filename TEXT,
-      filepath TEXT,
-      title TEXT,
-      artist TEXT,
-      album TEXT,
-      duration REAL,
-      cover TEXT,
-      lyrics TEXT,
-      lyrics_offset INTEGER DEFAULT 0,
-      added_at INTEGER
-    );
-    CREATE TABLE IF NOT EXISTS playlists (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      created_at INTEGER,
-      cover_type TEXT,
-      cover_image TEXT,
-      cover_gradient TEXT
-    );
-    CREATE TABLE IF NOT EXISTS playlist_tracks (
-      playlist_id TEXT,
-      track_id TEXT,
-      added_at INTEGER,
-      PRIMARY KEY (playlist_id, track_id)
-    );
-  `)
-
-  // Migrations for existing databases
-  const trCols = db.prepare(`PRAGMA table_info(tracks)`).all() as { name: string }[]
-  const trColNames = new Set(trCols.map((c) => c.name))
-  if (!trColNames.has('lyrics_offset'))
-    db.exec(`ALTER TABLE tracks ADD COLUMN lyrics_offset INTEGER DEFAULT 0`)
-  const plCols = db.prepare(`PRAGMA table_info(playlists)`).all() as { name: string }[]
-  const plColNames = new Set(plCols.map((c) => c.name))
-  if (!plColNames.has('cover_type')) db.exec(`ALTER TABLE playlists ADD COLUMN cover_type TEXT`)
-  if (!plColNames.has('cover_image')) db.exec(`ALTER TABLE playlists ADD COLUMN cover_image TEXT`)
-  if (!plColNames.has('cover_gradient'))
-    db.exec(`ALTER TABLE playlists ADD COLUMN cover_gradient TEXT`)
+  initDatabaseSchema(db)
 }
 
 function createWindow(): void {
-  // Determine appropriate icon path depending on platform and environment
   let iconPath: string
 
   if (process.platform === 'win32') {
@@ -107,8 +74,6 @@ function createWindow(): void {
       : path.join(__dirname, '../renderer/public/logo.svg')
   }
 
-  // Frameless window on Windows: the native OS title bar / borders are removed
-  // and replaced by a custom, in-app title bar rendered by the <TitleBar />.
   const isWindows = process.platform === 'win32'
 
   mainWindow = new BrowserWindow({
@@ -120,7 +85,6 @@ function createWindow(): void {
     autoHideMenuBar: true,
     title: 'omus',
     icon: iconPath,
-    // Remove the default OS window frame on Windows (kept on macOS/Linux).
     ...(isWindows ? { frame: false } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -130,8 +94,6 @@ function createWindow(): void {
 
   mainWindow.setTitle('omus')
 
-  // Keep the renderer in sync with the real maximize state so the custom
-  // title bar can swap its maximize / restore icon and react to shortcuts.
   const win = mainWindow
   const sendMaxState = (): void => {
     if (!win.isDestroyed()) win.webContents.send('window:maximized', win.isMaximized())
@@ -142,9 +104,6 @@ function createWindow(): void {
     if (mainWindow === win) mainWindow = null
   })
 
-  // If the page reloads (e.g. dev hot-reload) while mini mode is active, push the
-  // current state back down so the renderer immediately shows the mini UI again
-  // instead of the full app crammed into the tiny window.
   win.webContents.on('did-finish-load', () => {
     if (!win.isDestroyed()) win.webContents.send('window:mini-mode', miniModeActive)
   })
@@ -156,14 +115,20 @@ function createWindow(): void {
   }
 }
 
-async function walkDir(dir: string): Promise<string[]> {
+async function walkDir(dir: string, visited: Set<string> = new Set()): Promise<string[]> {
   let results: string[] = []
   try {
+    // Resolve symlinks/junctions and share one `visited` set across the whole
+    // traversal so a directory loop can never cause unbounded recursion.
+    const real = await fs.realpath(dir)
+    if (visited.has(real)) return []
+    visited.add(real)
+
     const list = await fs.readdir(dir, { withFileTypes: true })
     for (const file of list) {
       const fullPath = path.resolve(dir, file.name)
       if (file.isDirectory()) {
-        results = results.concat(await walkDir(fullPath))
+        results = results.concat(await walkDir(fullPath, visited))
       } else {
         results.push(fullPath)
       }
@@ -198,7 +163,6 @@ const MIME_BY_EXT: Record<string, string> = {
   '.wma': 'audio/x-ms-wma',
   '.aiff': 'audio/aiff',
   '.alac': 'audio/mp4',
-  // Music video / video container mappings (used by the streaming protocol).
   '.mp4': 'video/mp4',
   '.m4v': 'video/mp4',
   '.webm': 'video/webm',
@@ -215,9 +179,6 @@ const MIME_BY_EXT: Record<string, string> = {
   '.m2ts': 'video/mp2t'
 }
 
-// Video containers accepted as music videos. Even when `music-metadata` cannot
-// read tags from a container, the file is still imported (the HTML media
-// element reports the real duration at playback time).
 const VIDEO_EXTS = new Set([
   '.mp4',
   '.m4v',
@@ -235,7 +196,6 @@ const VIDEO_EXTS = new Set([
   '.m2ts'
 ])
 
-// Everything the library can import — audio plus music-video containers.
 const MEDIA_EXTS = new Set([...AUDIO_EXTS, ...VIDEO_EXTS])
 
 interface ParsedTrack {
@@ -264,10 +224,11 @@ interface SavedTrack {
   added_at: number
 }
 
-async function parseAudioFile(sourcePath: string): Promise<ParsedTrack | null> {
+async function parseAudioFile(
+  sourcePath: string,
+  options: { skipCovers?: boolean } = {}
+): Promise<ParsedTrack | null> {
   const ext = path.extname(sourcePath).toLowerCase()
-  // Video containers may not carry audio-tag metadata; keep a usable fallback
-  // so the file still gets imported (duration is reported at playback time).
   const fallback: ParsedTrack = {
     sourcePath,
     filename: path.basename(sourcePath),
@@ -280,10 +241,11 @@ async function parseAudioFile(sourcePath: string): Promise<ParsedTrack | null> {
   }
 
   try {
+    const skipCovers = options.skipCovers === true
     const { parseFile } = await import('music-metadata')
-    const metadata = await parseFile(sourcePath, { duration: true, skipCovers: false })
+    const metadata = await parseFile(sourcePath, { duration: true, skipCovers })
     let coverBase64 = ''
-    if (metadata.common.picture && metadata.common.picture.length > 0) {
+    if (!skipCovers && metadata.common.picture && metadata.common.picture.length > 0) {
       const pic = metadata.common.picture[0]
       coverBase64 = `data:${pic.format};base64,${pic.data.toString('base64')}`
     }
@@ -297,6 +259,23 @@ async function parseAudioFile(sourcePath: string): Promise<ParsedTrack | null> {
     }
   } catch {
     return VIDEO_EXTS.has(ext) ? fallback : null
+  }
+}
+
+/**
+ * Extracts only the embedded cover art of a file as a base64 data URL.
+ * Kept separate from `parseAudioFile` so that folder scans can defer the
+ * (memory heavy) artwork to save-time instead of holding every cover of a
+ * large library in RAM at once.
+ */
+async function extractCover(sourcePath: string): Promise<string> {
+  try {
+    const { parseFile } = await import('music-metadata')
+    const metadata = await parseFile(sourcePath, { duration: false, skipCovers: false })
+    const pic = metadata.common.picture?.[0]
+    return pic ? `data:${pic.format};base64,${pic.data.toString('base64')}` : ''
+  } catch {
+    return ''
   }
 }
 
@@ -334,102 +313,141 @@ async function saveSingleTrack(t: ParsedTrack): Promise<SavedTrack | null> {
 // IPC HANDLERS
 // ----------------------------------------------------
 
+async function showOpenDialog(
+  event: Electron.IpcMainInvokeEvent,
+  options: Electron.OpenDialogOptions
+): Promise<Electron.OpenDialogReturnValue> {
+  const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+  return win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options)
+}
+
+async function showSaveDialog(
+  event: Electron.IpcMainInvokeEvent,
+  options: Electron.SaveDialogOptions
+): Promise<Electron.SaveDialogReturnValue> {
+  const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+  return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options)
+}
+
 ipcMain.handle('library:get', () => {
   return db.prepare('SELECT * FROM tracks ORDER BY added_at DESC').all()
 })
 
-ipcMain.handle('library:parse-uploads', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    title: 'Select Media Files',
-    properties: ['openFile', 'multiSelections'],
-    filters: [
-      {
-        name: 'Media Files',
-        extensions: [
-          'mp3',
-          'flac',
-          'wav',
-          'm4a',
-          'ogg',
-          'aac',
-          'alac',
-          'aiff',
-          'mp4',
-          'm4v',
-          'webm',
-          'mkv',
-          'mov',
-          'avi',
-          'flv',
-          'wmv',
-          'ogv',
-          'mpg',
-          'mpeg',
-          '3gp'
-        ]
-      }
-    ]
-  })
+ipcMain.handle('library:parse-uploads', async (event) => {
+  try {
+    const { canceled, filePaths } = await showOpenDialog(event, {
+      title: 'Select Media Files',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        {
+          name: 'Media Files',
+          extensions: [
+            'mp3',
+            'flac',
+            'wav',
+            'm4a',
+            'ogg',
+            'aac',
+            'alac',
+            'aiff',
+            'mp4',
+            'm4v',
+            'webm',
+            'mkv',
+            'mov',
+            'avi',
+            'flv',
+            'wmv',
+            'ogv',
+            'mpg',
+            'mpeg',
+            '3gp'
+          ]
+        }
+      ]
+    })
 
-  if (canceled || filePaths.length === 0) return []
+    if (canceled || filePaths.length === 0) return []
 
-  const parsedTracks: ParsedTrack[] = []
-  for (const sourcePath of filePaths) {
-    const parsed = await parseAudioFile(sourcePath)
-    if (parsed) parsedTracks.push(parsed)
+    const parsedTracks: ParsedTrack[] = []
+    for (const sourcePath of filePaths) {
+      const parsed = await parseAudioFile(sourcePath)
+      if (parsed) parsedTracks.push(parsed)
+    }
+    return parsedTracks
+  } catch (err) {
+    console.error('Failed to open file dialog:', err)
+    return []
   }
-  return parsedTracks
 })
 
-ipcMain.handle('library:parse-folder', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    title: 'Select Music Folder',
-    properties: ['openDirectory']
-  })
+ipcMain.handle('library:parse-folder', async (event) => {
+  try {
+    const { canceled, filePaths } = await showOpenDialog(event, {
+      title: 'Select Music Folder',
+      properties: ['openDirectory', 'multiSelections']
+    })
 
-  if (canceled || filePaths.length === 0) return []
+    if (canceled || filePaths.length === 0) return []
 
-  const allFiles = await walkDir(filePaths[0])
-  const mediaFiles = allFiles.filter((f) => MEDIA_EXTS.has(path.extname(f).toLowerCase()))
+    const parsedTracks: ParsedTrack[] = []
+    for (const folderPath of filePaths) {
+      const allFiles = await walkDir(folderPath)
+      const mediaFiles = allFiles.filter((f) => MEDIA_EXTS.has(path.extname(f).toLowerCase()))
 
-  const parsedTracks: ParsedTrack[] = []
-  for (const sourcePath of mediaFiles) {
-    const parsed = await parseAudioFile(sourcePath)
-    if (parsed) parsedTracks.push(parsed)
+      for (const sourcePath of mediaFiles) {
+        // Covers are skipped here (and backfilled when the user saves) so that
+        // scanning a big library can never exhaust memory holding every cover.
+        const parsed = await parseAudioFile(sourcePath, { skipCovers: true })
+        if (parsed) parsedTracks.push(parsed)
+      }
+    }
+    return parsedTracks
+  } catch (err) {
+    logError('Failed to scan folder', err)
+    console.error('Failed to scan folder:', err)
+    return []
   }
-  return parsedTracks
 })
 
 ipcMain.handle('library:parse-paths', async (_, paths: string[]) => {
   if (!Array.isArray(paths) || paths.length === 0) return []
 
+  let scannedDir = false
   const files: string[] = []
   for (const p of paths) {
     const st = await fs.stat(p).catch(() => null)
     if (!st) continue
-    if (st.isDirectory()) files.push(...(await walkDir(p)))
-    else files.push(p)
+    if (st.isDirectory()) {
+      scannedDir = true
+      files.push(...(await walkDir(p)))
+    } else {
+      files.push(p)
+    }
   }
 
   const parsedTracks: ParsedTrack[] = []
+  // Defer covers for folder scans and large batches (bounded memory); small
+  // drags of individual files keep instant cover previews.
+  const skipCovers = scannedDir || files.length > 50
   for (const sourcePath of files) {
     if (!MEDIA_EXTS.has(path.extname(sourcePath).toLowerCase())) continue
-    const parsed = await parseAudioFile(sourcePath)
+    const parsed = await parseAudioFile(sourcePath, { skipCovers })
     if (parsed) parsedTracks.push(parsed)
   }
   return parsedTracks
 })
 
-ipcMain.handle('library:select-cover', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    title: 'Select Cover Image',
-    properties: ['openFile'],
-    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif'] }]
-  })
-
-  if (canceled || filePaths.length === 0) return null
-
+ipcMain.handle('library:select-cover', async (event) => {
   try {
+    const { canceled, filePaths } = await showOpenDialog(event, {
+      title: 'Select Cover Image',
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'avif'] }]
+    })
+
+    if (canceled || filePaths.length === 0) return null
+
     const imagePath = filePaths[0]
     const imageBuffer = await fs.readFile(imagePath)
     const ext = path.extname(imagePath).replace('.', '').toLowerCase()
@@ -443,7 +461,14 @@ ipcMain.handle('library:select-cover', async () => {
 ipcMain.handle('library:save-tracks', async (_, tracks: ParsedTrack[]) => {
   const saved: SavedTrack[] = []
   for (const t of tracks) {
-    const rec = await saveSingleTrack(t)
+    // Tracks imported without artwork (folder scans) get their embedded cover
+    // extracted here, one file at a time, so memory stays bounded.
+    let record = t
+    if (!t.cover) {
+      const cover = await extractCover(t.sourcePath)
+      if (cover) record = { ...t, cover }
+    }
+    const rec = await saveSingleTrack(record)
     if (rec) saved.push(rec)
   }
   return saved
@@ -656,10 +681,11 @@ ipcMain.handle('playlists:covers', () => {
   return map
 })
 
-ipcMain.handle('playlists:export', async (_, playlistId: string) => {
+ipcMain.handle('playlists:export', async (event, playlistId: string) => {
   try {
     const pl = db.prepare('SELECT * FROM playlists WHERE id = ?').get(playlistId) as
-      { name: string } | undefined
+      | { name: string }
+      | undefined
     if (!pl) return false
     const rows = db
       .prepare(
@@ -672,7 +698,7 @@ ipcMain.handle('playlists:export', async (_, playlistId: string) => {
       )
       .all(playlistId) as { filepath: string }[]
     const safeName = pl.name.replace(/[\\/:*?"<>|]/g, '_') || 'Playlist'
-    const { canceled, filePath } = await dialog.showSaveDialog({
+    const { canceled, filePath } = await showSaveDialog(event, {
       title: 'Export Playlist',
       defaultPath: `${safeName}.m3u`,
       filters: [{ name: 'M3U Playlist', extensions: ['m3u', 'm3u8'] }]
@@ -690,16 +716,16 @@ ipcMain.handle('playlists:export', async (_, playlistId: string) => {
   }
 })
 
-ipcMain.handle('playlists:import-m3u', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    title: 'Import M3U Playlist',
-    properties: ['openFile'],
-    filters: [{ name: 'M3U Playlist', extensions: ['m3u', 'm3u8'] }]
-  })
-
-  if (canceled || filePaths.length === 0) return null
-
+ipcMain.handle('playlists:import-m3u', async (event) => {
   try {
+    const { canceled, filePaths } = await showOpenDialog(event, {
+      title: 'Import M3U Playlist',
+      properties: ['openFile'],
+      filters: [{ name: 'M3U Playlist', extensions: ['m3u', 'm3u8'] }]
+    })
+
+    if (canceled || filePaths.length === 0) return null
+
     const m3uPath = filePaths[0]
     const playlistName = path.parse(m3uPath).name || 'Imported Playlist'
     const content = await fs.readFile(m3uPath, 'utf-8')
@@ -727,7 +753,8 @@ ipcMain.handle('playlists:import-m3u', async () => {
 
     for (const p of audioPaths) {
       let track = db.prepare('SELECT id FROM tracks WHERE filepath = ?').get(p) as
-        { id: string } | undefined
+        | { id: string }
+        | undefined
       if (!track) {
         const parsed = await parseAudioFile(p)
         if (parsed) {
@@ -766,8 +793,6 @@ ipcMain.handle('settings:set', async (_, settings: unknown) => {
   }
 })
 
-// Synchronous "best-effort" write used for the final settings flush when the
-// window is closing (the async invoke above may not make it out in time).
 ipcMain.on('settings:set-sync', (_event, settings: unknown) => {
   try {
     writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8')
@@ -776,13 +801,12 @@ ipcMain.on('settings:set-sync', (_event, settings: unknown) => {
   }
 })
 
-// Manual "Check for updates" from Settings.
 ipcMain.on('updates:check', () => {
   void checkForUpdates(mainWindow, true)
 })
 
 // ----------------------------------------------------
-// WINDOW CONTROLS — driven by the custom frameless title bar
+// WINDOW CONTROLS
 // ----------------------------------------------------
 ipcMain.on('window:minimize', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize()
@@ -805,9 +829,7 @@ ipcMain.handle('window:is-maximized', (event) => {
 })
 
 // ----------------------------------------------------
-// MINI PLAYER MODE — collapse the window into an
-// always-on-top, draggable cover widget docked to the
-// corner of the screen (Spotify-style mini player).
+// MINI PLAYER MODE
 // ----------------------------------------------------
 function enterMiniMode(win: BrowserWindow): void {
   if (miniModeActive || win.isDestroyed()) return
@@ -816,8 +838,6 @@ function enterMiniMode(win: BrowserWindow): void {
   if (wasMaximizedBeforeMini) win.unmaximize()
   normalBounds = win.getBounds()
 
-  // Dock the widget to the bottom-right of the screen the window currently
-  // lives on (16px margin from the work area / taskbar edge).
   const workArea = screen.getDisplayMatching(normalBounds).workArea
   const x = workArea.x + workArea.width - MINI_SIZE - 16
   const y = workArea.y + workArea.height - MINI_SIZE - 16
@@ -872,12 +892,6 @@ ipcMain.on('discord:clear', () => {
 // ----------------------------------------------------
 
 app.whenReady().then(async () => {
-  // Protocol handler for streaming audio with proper HTTP Range support.
-  // HTML5 <audio> issues a Range request whenever it needs bytes (playback and,
-  // critically, seeking). If we ignore Range and return a plain 200 with the
-  // whole file, the element restarts from 0 on every seek — the cause of the
-  // "clicking the slider sends the track back to the start" bug. Responding
-  // with 206 Partial Content + Content-Range makes seeking instant and smooth.
   protocol.handle('omus-media', async (request) => {
     try {
       const url = new URL(request.url)
@@ -939,19 +953,21 @@ app.whenReady().then(async () => {
   await initStorage()
   createWindow()
 
-  // Auto-check for updates shortly after launch (after the window has shown so
-  // it doesn't interrupt the first paint / loading screen).
+  logInfo(`App started (v${app.getVersion()}, ${process.platform}, userData=${USER_DATA_PATH})`)
+
   setTimeout(() => {
     void checkForUpdates(mainWindow)
   }, 4000)
 })
 
 app.on('window-all-closed', () => {
+  logInfo('All windows closed')
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
 app.on('before-quit', () => {
+  logInfo('Quitting')
   destroyDiscordRPC()
 })
