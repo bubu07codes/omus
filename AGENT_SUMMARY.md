@@ -191,7 +191,7 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
 - **Frameless on Windows only** (`frame:false`): custom in-app title bar (`TitleBar.tsx`,
   `TITLEBAR_H=40`). Maximize state is pushed to renderer via `window:maximized` event.
 - Loads `ELECTRON_RENDERER_URL` (dev) or `out/renderer/index.html`.
-- Auto-update check 4s after launch (non-blocking, `checkForUpdates(mainWindow)`).
+- Auto-update check 4s after launch (non-blocking, `checkForUpdates(mainWindow)`; packaged app only).
 - `window-all-closed` quits (except darwin); `before-quit` destroys Discord RPC.
 
 ### 6.6 Full IPC surface (main process)
@@ -222,6 +222,7 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
 | `window:minimize` / `window:close` | on | BrowserWindow controls |
 | `window:toggle-maximize` / `window:is-maximized` | handle | returns bool |
 | *(event)* `window:maximized` | →renderer | maximize state push |
+| *(event)* `update-status` | →renderer | auto-update progress (checking/found/downloading/downloaded/notavailable/error) |
 
 ## 7. Support modules (main process)
 
@@ -234,11 +235,18 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
   **non-fatal** (all wrapped in try/catch).
 
 ### `src/main/updater.ts`
-- `checkForUpdates(win, manual?)` → GETs `https://api.github.com/repos/bubu07codes/omus/releases/latest`
-  (anonymous — GitHub rate limit applies), compares semver (`parseVersion`/`isNewer`, strips leading
-  `v` and `-prerelease` suffixes), shows message boxes (manual) or silently ignores (auto).
-- Manual mode sends staged status events to renderer: `update-status {stage: connecting|fetching|comparing|done|error, message}`.
-- “Get Update” opens the release HTML page in the browser. Drafts/prereleases = “No update”.
+- `checkForUpdates(win, manual?)` → drives **electron-updater** (`autoUpdater`, v6) against the GitHub
+  publish feed (`bubu07codes/omus` from `electron-builder.yml` → generated `app-update.yml`). Runs only
+  in the packaged app (dev builds show a hint dialog on manual checks). `parseVersion`/`isNewer` semver
+  helpers are kept exported for the unit tests.
+- Flow: user confirms “Download & Install” → `autoUpdater.downloadUpdate()` (live `download-progress`,
+  throttled to ≥2% steps) → `autoUpdater.quitAndInstall(true, true)` — **closes every window, silently
+  runs the NSIS installer and relaunches the new version**. No browser, no manual installer.
+- `autoUpdater.autoDownload = false` — nothing downloads until the user consents.
+- Sends staged progress to renderer: `update-status {stage: checking|found|downloading|downloaded|notavailable|error, message, percent?, version?}`;
+  the renderer shows a bottom-right progress overlay while downloading.
+- Publishing must upload the `latest.yml` metadata + `.exe`/`.blockmap`: `npm run publish:win`
+  (requires a `GH_TOKEN` env var), or use the GitHub `--publish` flag from CI.
 
 ## 8. Preload bridge — `src/preload/index.ts` (+ index.d.ts)
 
@@ -257,7 +265,8 @@ Complete `window.api` surface (grouped):
   `getPlaylistTracks(plId)`, `reorderPlaylistTracks(plId, trackIds)`, `updatePlaylist(plId, data)`,
   `getPlaylistCovers()`, `exportPlaylist(plId)`, `importPlaylist()`
 - **Settings:** `getSettings()`, `saveSettings(obj)` (async), `flushSettings(obj)` (sync on close)
-- **Integrations:** `checkForUpdates()` (fire-and-forget), `updateDiscordPresence(activity)`, `clearDiscordPresence()`
+- **Integrations:** `checkForUpdates()` (fire-and-forget), `onUpdateStatus(cb)` (subscribe → unsubscribe),
+  `updateDiscordPresence(activity)`, `clearDiscordPresence()`
 - **Window:** `windowMinimize()`, `windowClose()`, `windowToggleMaximize()`,
   `isWindowMaximized()`, `onWindowMaximizeChange(cb) → unsubscribe`, `setZoomFactor(f)`, `getZoomFactor()`
   Mini player mode: `enterMiniMode()`, `exitMiniMode()`, `onMiniModeChange(cb) → unsubscribe`
@@ -445,7 +454,8 @@ settings.json (not a separate table).
   always creates desktop shortcut, uninstall display name `omus`.
 - mac: dmg, no notarize, camera/mic/docs/downloads usage descriptions.
 - linux: AppImage + snap + deb, `npmRebuild: true`.
-- Publish provider: GitHub (`bubu07codes/omus`) for auto-update releases.
+- Publish provider: GitHub (`bubu07codes/omus`). `npm run publish:win` uploads the NSIS installer +
+  `latest.yml` blockmap metadata that electron-updater needs.
 - `asarUnpack`: `resources/**` + `**/*.node` (native better-sqlite3).
 - Files excluded from package: src, docs, tests, maps, dev configs (see yml `files` block).
 - Icon: `build/icon.ico` (win), `logo.svg` (mac/linux runtime).
@@ -454,7 +464,7 @@ settings.json (not a separate table).
 | Service | Used for | Where |
 |---|---|---|
 | LRCLIB (lrclib.net) | synced lyrics auto-fetch | `useLyrics.ts` (CSP allowlisted) |
-| GitHub API | release update checks | `src/main/updater.ts` (anonymous) |
+| GitHub | auto-update releases (electron-updater) | `src/main/updater.ts` — feed from `app-update.yml` |
 | Discord IPC | Rich Presence | `src/main/discordRPC.ts` — **hardcoded client ID** |
 | Google Fonts | Plus Jakarta Sans / Space Grotesk | `App.tsx` init + `LoadingScreen` (CSP allowlisted) |
 

@@ -39,6 +39,16 @@ export interface CustomAPI {
   flushSettings: (settings: unknown) => void
   // GitHub release checker ("Check for updates").
   checkForUpdates: () => void
+  // Live auto-update progress pushed from the main process (download % etc.),
+  // returns an unsubscribe function.
+  onUpdateStatus: (
+    callback: (status: {
+      stage: string
+      message: string
+      percent?: number
+      version?: string
+    }) => void
+  ) => () => void
   // Discord Rich Presence
   updateDiscordPresence: (activity: {
     title: string

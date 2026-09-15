@@ -10,6 +10,12 @@ vi.mock('electron', () => ({
   BrowserWindow: class {}
 }))
 
+// `electron-updater` is a thin wrapper around `electron` and only functions
+// inside the packaged app — stub it so the module can be imported by vitest.
+vi.mock('electron-updater', () => ({
+  autoUpdater: {}
+}))
+
 import { parseVersion, isNewer } from '../../src/main/updater'
 
 describe('parseVersion', () => {

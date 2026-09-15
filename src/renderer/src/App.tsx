@@ -176,6 +176,13 @@ interface SavedSettings {
   uiScale?: number
   onboardingDone?: boolean
 }
+// Auto-update progress pushed from the main process (see src/main/updater.ts).
+interface UpdateStatusEvent {
+  stage: string
+  message: string
+  percent?: number
+  version?: string
+}
 
 // Categories shown in the Settings sidebar. Order matches the on-page flow.
 const SETTINGS_CATS: {
@@ -579,6 +586,14 @@ export default function App() {
 
   // ---- Toast ----
   const { toasts, addToast, removeToast } = useToast()
+
+  // ---- Auto-update status (main → renderer progress events) ----
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatusEvent | null>(null)
+  useEffect(() => {
+    if (!window.api?.onUpdateStatus) return
+    const unsubscribe = window.api.onUpdateStatus((status) => setUpdateStatus(status))
+    return unsubscribe
+  }, [])
   // Deferred search + transitioned view switches: heavy UI updates happen in a
   // lower-priority transition instead of blocking paint inside the click handler.
   const [, startTransition] = useTransition()
@@ -4898,7 +4913,8 @@ export default function App() {
                 <div className="settings-row-text">
                   <div className="settings-row-title">Updates</div>
                   <div className="settings-row-desc">
-                    omus checks for new GitHub releases automatically at launch.
+                    omus checks for new versions automatically at launch. When one is found the
+                    update downloads, installs and restarts the app on its own.
                   </div>
                 </div>
                 <button
@@ -6272,6 +6288,57 @@ export default function App() {
         onClose={() => setIsAboutOpen(false)}
         openExternal={(url) => window.api?.openExternal && window.api.openExternal(url)}
       />
+
+      {/* AUTO-UPDATE PROGRESS OVERLAY — visible while a new version downloads */}
+      {updateStatus &&
+        (updateStatus.stage === 'downloading' || updateStatus.stage === 'downloaded') && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              zIndex: 9998,
+              background: 'var(--card-bg)',
+              border: '1px solid rgba(128, 128, 128, 0.25)',
+              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.55)',
+              borderRadius: 12,
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              minWidth: 280,
+              maxWidth: 380,
+              backdropFilter: 'blur(20px)',
+              color: 'var(--text-primary)',
+              pointerEvents: 'none'
+            }}
+          >
+            <Download size={18} color="var(--accent)" style={{ flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>{updateStatus.message}</div>
+              {typeof updateStatus.percent === 'number' && updateStatus.stage === 'downloading' && (
+                <div
+                  style={{
+                    height: 4,
+                    marginTop: 6,
+                    background: 'rgba(128, 128, 128, 0.2)',
+                    borderRadius: 2,
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${Math.max(2, Math.min(100, updateStatus.percent))}%`,
+                      background: 'var(--accent)',
+                      transition: 'width 0.3s linear'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* TOAST NOTIFICATIONS */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />

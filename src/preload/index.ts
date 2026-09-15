@@ -54,6 +54,25 @@ contextBridge.exposeInMainWorld('api', {
   flushSettings: (settings: unknown) => ipcRenderer.send('settings:set-sync', settings),
   // GitHub release checker ("Check for updates").
   checkForUpdates: () => ipcRenderer.send('updates:check'),
+  // Live auto-update progress pushed back while a new version is downloaded
+  // and installed (see src/main/updater.ts).
+  onUpdateStatus: (
+    callback: (status: {
+      stage: string
+      message: string
+      percent?: number
+      version?: string
+    }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      status: { stage: string; message: string; percent?: number; version?: string }
+    ) => callback(status)
+    ipcRenderer.on('update-status', listener)
+    return () => {
+      ipcRenderer.removeListener('update-status', listener)
+    }
+  },
   // Discord Rich Presence
   updateDiscordPresence: (activity: {
     title: string
