@@ -68,14 +68,7 @@
   "build": {
     "appId": "com.omus.app",
     "productName": "omus",
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "bubu07codes",
-        "repo": "omus",
-        "releaseType": "release"
-      }
-    ],
+    "publish": null,
     "asarUnpack": [
       "resources/**",
       "**/*.node"
@@ -86,7 +79,8 @@
       ]
     },
     "nsis": {
-      "artifactName": "install-omus.${ext}"
+      "artifactName": "install-omus.${ext}",
+      "differentialPackage": true
     },
     "linux": {
       "target": [
