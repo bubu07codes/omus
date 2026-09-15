@@ -68,14 +68,14 @@
   "build": {
     "appId": "com.omus.app",
     "productName": "omus",
-    "publish": {
-      "provider": "github",
-      "owner": "bubu07codes",
-      "repo": "omus",
-      "releaseType": "release",
-      "tagName": "v${version}",
-      "releaseName": "v${version}"
-    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "bubu07codes",
+        "repo": "omus",
+        "releaseType": "release"
+      }
+    ],
     "asarUnpack": [
       "resources/**",
       "**/*.node"
