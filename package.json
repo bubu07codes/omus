@@ -1,6 +1,6 @@
 {
   "name": "omus",
-  "version": "1.4.3",
+  "version": "1.4.5",
   "description": "the best offline music player with tons of features.",
   "main": "./out/main/index.js",
   "author": "bubu07",
@@ -68,6 +68,14 @@
   "build": {
     "appId": "com.omus.app",
     "productName": "omus",
+    "publish": {
+      "provider": "github",
+      "owner": "bubu07codes",
+      "repo": "omus",
+      "releaseType": "release",
+      "tagName": "v${version}",
+      "releaseName": "v${version}"
+    },
     "asarUnpack": [
       "resources/**",
       "**/*.node"
