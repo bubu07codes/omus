@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('api', {
       return ''
     }
   },
+  
   selectCover: () => ipcRenderer.invoke('library:select-cover'),
   saveTracks: (tracks: PendingTrack[]) => ipcRenderer.invoke('library:save-tracks', tracks),
   deleteTrack: (trackId: string) => ipcRenderer.invoke('library:delete-track', trackId),
