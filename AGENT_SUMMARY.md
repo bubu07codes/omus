@@ -191,6 +191,15 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
 - **Frameless on Windows only** (`frame:false`): custom in-app title bar (`TitleBar.tsx`,
   `TITLEBAR_H=40`). Maximize state is pushed to renderer via `window:maximized` event.
 - Loads `ELECTRON_RENDERER_URL` (dev) or `out/renderer/index.html`.
+- **Single-instance lock**: `app.requestSingleInstanceLock()` — a second launch logs and quits;
+  `second-instance` focuses/restores the existing window. Never run two instances on one userData
+  (SQLite/settings fights read as a broken or black window).
+- **Self-healing renderer**: `render-process-gone` (e.g. `oom`) → auto `reload()` up to 3 attempts
+  (counter resets on `did-finish-load`); `did-fail-load` on the main frame gets the same bounded
+  retry. A crashed renderer must never leave a permanent black window. `unresponsive` is logged.
+- **DB open guard**: `openDatabaseWithRetry()` retries 3× then falls back to an in-memory DB;
+  `initStorage()` is additionally wrapped in try/catch in `whenReady`. Storage failure must never
+  block window creation.
 - Auto-update check 4s after launch (non-blocking, `checkForUpdates(mainWindow)`; packaged app only).
 - `window-all-closed` quits (except darwin); `before-quit` destroys Discord RPC.
 
@@ -448,6 +457,19 @@ settings.json (not a separate table).
     crash because Discord/GitHub are unreachable.
 16. **`onWindowMaximizeChange` returns an unsubscribe fn** and `setZoomFactor/getZoomFactor` are
     optional in CustomAPI — call defensively (`window.api?.setZoomFactor?.(…)`).
+17. **Fluid background memory budget** (the "black window" bug): the blurred `.fluid-bg-container`
+    (plus waves/prism/nebula layers) is the app's biggest GPU-memory consumer (~90MB+). Keep the
+    bleed insets small (`inset: -6%` container, `-12%`/`-18%` mode layers), `contain: paint;
+    isolation: isolate`, and the blur cap in `FluidBackgroundLayer` (40px). Never re-enlarge these
+    rasters or move animations outside the contained layer — renderer OOM (`reason=oom`) follows.
+18. **Home bento ladder**: `.home-grid` is 6 columns ≥1200, 4 columns 861–1199, 2 columns 681–860,
+    and only 1 column ≤680. The old `@media (max-width:1300px)` single-column collapse made Home
+    look broken at the default 1320px window and on 125% DPI — don't reintroduce it.
+19. **Player-bar responsive cutoffs**: `[data-compact-hide]` (mini visualizer) hides ≤1400px;
+    `[data-compact-soft-hide]` (fluid-bg + sleep-timer buttons) hides ≤1240px — they were verified
+    to fit at 1320px (default window), so sleep-timer/fluid stay reachable by default.
+20. **`main.content` uses `scrollbar-gutter: stable`** — views that don't scroll keep the scrollbar
+    lane, so switching views never shifts the layout horizontally.
 
 ## 16. Build & packaging (`electron-builder.yml` + package.json `build{}`)
 - Win: **NSIS** installer, `install-omus.exe` (yml) / `com.omus.app` (appId), x64 only,

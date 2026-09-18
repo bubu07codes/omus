@@ -63,16 +63,54 @@ process.on('unhandledRejection', (err) => {
 let db: Database.Database
 let mainWindow: BrowserWindow | null = null
 
+// ---- Single instance lock -------------------------------------------------
+// Two omus processes would fight over the same SQLite database and
+// settings.json (SQLITE_BUSY errors, clobbered writes, double-playing audio).
+// The visible symptom is a broken or plain-black window a few seconds after a
+// second launch — so the second launch must simply quit and focus the first.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  logInfo('Another omus instance already holds the app lock — quitting this launch.')
+  app.quit()
+}
+app.on('second-instance', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+})
+
 const MINI_SIZE = 240
 let miniModeActive = false
 let normalBounds: Electron.Rectangle | null = null
 let wasMaximizedBeforeMini = false
 
+// Open the library database with retries. A locked/corrupt DB file must never
+// prevent the window from loading (that reads as "app shows a black screen").
+// Worst case we run on an in-memory database for this session.
+function openDatabaseWithRetry(attempts = 3): Database.Database {
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const database = new Database(DB_PATH)
+      initDatabaseSchema(database)
+      return database
+    } catch (err) {
+      lastErr = err
+      logError(`Database open failed (attempt ${attempt}/${attempts})`, err as Error)
+    }
+  }
+  logError('Falling back to an in-memory database for this session', lastErr as Error)
+  const memoryDb = new Database(':memory:')
+  initDatabaseSchema(memoryDb)
+  return memoryDb
+}
+
 async function initStorage(): Promise<void> {
   await fs.mkdir(MUSIC_STORE_PATH, { recursive: true })
   await fs.mkdir(COVERS_DIR, { recursive: true })
-  db = new Database(DB_PATH)
-  initDatabaseSchema(db)
+  db = openDatabaseWithRetry()
 }
 
 function createWindow(): void {
@@ -118,8 +156,41 @@ function createWindow(): void {
     if (mainWindow === win) mainWindow = null
   })
 
+  // ---- Self-healing renderer ----
+  // A crashed renderer normally leaves a dead black window on screen. Instead
+  // of forcing the user to relaunch, reload the page automatically (bounded —
+  // if the crash loops we stop after 3 attempts instead of flickering forever).
+  let rendererReloads = 0
   win.webContents.on('did-finish-load', () => {
     if (!win.isDestroyed()) win.webContents.send('window:mini-mode', miniModeActive)
+    rendererReloads = 0
+  })
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    logError(`Renderer gone: reason=${details.reason} exitCode=${details.exitCode}`, new Error(details.reason))
+    if (details.reason === 'clean-exit') return
+    if (rendererReloads >= 3) return
+    rendererReloads++
+    setTimeout(() => {
+      if (!win.isDestroyed()) {
+        logInfo(`Reloading renderer after crash (attempt ${rendererReloads}/3)`)
+        win.webContents.reload()
+      }
+    }, 400)
+  })
+  win.webContents.on('unresponsive', () => {
+    logError('Renderer became unresponsive', new Error('webContents unresponsive'))
+  })
+  // Main-frame load failures (bad disk state, AV locks on first paint, …) get
+  // the same bounded retry so the window never sticks on a blank frame.
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3 /* ABORTED: intentional nav */) return
+    if (rendererReloads >= 3) return
+    rendererReloads++
+    logError(`Main frame load failed (${errorCode} ${errorDescription}) for ${validatedURL}`, new Error(errorDescription))
+    setTimeout(() => {
+      if (!win.isDestroyed()) win.webContents.reload()
+    }, 400)
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -1015,6 +1086,9 @@ ipcMain.on('discord:clear', () => {
 // ----------------------------------------------------
 
 app.whenReady().then(async () => {
+  // A second launch lost the single-instance lock — never open a window.
+  if (!gotSingleInstanceLock) return
+
   protocol.handle('omus-cover', async (request) => {
     try {
       const url = new URL(request.url)
@@ -1113,16 +1187,23 @@ app.whenReady().then(async () => {
     }
   })
 
-  await initStorage()
+  try {
+    await initStorage()
+  } catch (err) {
+    // Even a total storage failure (permissions, disk errors) must not leave
+    // the user with a dead window — run the session on an in-memory DB.
+    logError('initStorage failed — continuing with in-memory database', err as Error)
+    db = db ?? new Database(':memory:')
+    initDatabaseSchema(db)
+  }
   createWindow()
+  logInfo(`App started (v${app.getVersion()}, ${process.platform}, userData=${USER_DATA_PATH})`)
 
   // Move any legacy inline (base64) covers to disk in the background so large
   // upgraded libraries never ship megabyte-sized covers over IPC.
   setTimeout(() => {
     void migrateLegacyCoversToDisk()
   }, 500)
-
-  logInfo(`App started (v${app.getVersion()}, ${process.platform}, userData=${USER_DATA_PATH})`)
 
   setTimeout(() => {
     void checkForUpdates(mainWindow)

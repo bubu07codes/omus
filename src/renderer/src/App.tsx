@@ -219,7 +219,7 @@ function FluidBackgroundLayer({
   softScrim?: boolean
   mode?: 'aurora' | 'waves' | 'prism' | 'nebula'
 }) {
-  const blurPx = Math.min(blur, 48)
+  const blurPx = Math.min(blur, 40)
   const satPct = Math.min(saturation, 200)
   const filter = `blur(${blurPx}px) saturate(${satPct}%)`
   // The aurora orbs are huge and come with cover art, so they get a gentler
@@ -5578,7 +5578,7 @@ export default function App() {
           <button
             className="sp-btn-icon"
             data-active={fluidBgEnabled}
-            data-compact-hide
+            data-compact-soft-hide
             onClick={() => setFluidBgEnabled((v) => !v)}
             title={fluidBgEnabled ? 'Disable Fluid Background' : 'Enable Fluid Background'}
           >
@@ -5587,7 +5587,7 @@ export default function App() {
           <button
             className="sp-btn-icon"
             onClick={() => setIsSleepTimerOpen(true)}
-            data-compact-hide
+            data-compact-soft-hide
             title={
               sleepTimer.active
                 ? `Sleep timer: ${Math.floor(sleepTimer.remainingSeconds / 60)}:${(sleepTimer.remainingSeconds % 60).toString().padStart(2, '0')}`

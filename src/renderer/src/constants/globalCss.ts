@@ -55,8 +55,14 @@ export const GLOBAL_CSS = `
 
   /* Fluid Ambient Orbs */
   .fluid-bg-container {
-    position: fixed; inset: -10%; pointer-events: none;
+    position: fixed; inset: -6%; pointer-events: none;
     z-index: 0; overflow: hidden; transition: opacity 0.8s ease;
+    /* GPU containment: the blurred layer is huge and continuously animating.
+       paint-containment caps its raster/repaint scope and isolation keeps it
+       from blending with the page — both keep the compositor cost predictable
+       (this layer is the known source of the "whole window goes black" crash
+       on weaker Windows GPU stacks). */
+    contain: paint; isolation: isolate;
   }
   .fluid-orb { position: absolute; border-radius: 50%; background-size: cover; background-position: center; will-change: transform, opacity; }
   .fluid-orb.orb-1 { top: 5%; left: 5%; width: 55vw; height: 55vw; }
@@ -68,9 +74,9 @@ export const GLOBAL_CSS = `
      Each piece is a deformed, heavily-blurred crop of the cover (the container
      applies the blur), so they read as soft organic backdrops instead of flat
      color stripes. Without cover art they fall back to theme gradients. */
-  .fb-waves { position: absolute; inset: -20%; overflow: hidden; }
+  .fb-waves { position: absolute; inset: -12%; overflow: hidden; }
   .fb-wave {
-    position: absolute; width: 260%; height: 44%; border-radius: 50%; left: -80%;
+    position: absolute; width: 180%; height: 44%; border-radius: 50%; left: -40%;
     background-size: cover; background-position: center;
     will-change: transform;
   }
@@ -105,7 +111,7 @@ export const GLOBAL_CSS = `
     from { transform: translate3d(-10%, -2%, 0) rotate(-4deg) scaleY(0.96); }
     to   { transform: translate3d(10%, 3%, 0) rotate(4deg) scaleY(1.06); }
   }
-  .fb-prism { position: absolute; inset: -30%; }
+  .fb-prism { position: absolute; inset: -18%; }
   .fb-prism-piece {
     position: absolute; border-radius: 46%;
     background-size: cover; background-position: center;
@@ -138,7 +144,7 @@ export const GLOBAL_CSS = `
     from { transform: rotate(-8deg) scale(0.9); }
     to   { transform: rotate(8deg) scale(1.1); }
   }
-  .fb-nebula { position: absolute; inset: -30%; }
+  .fb-nebula { position: absolute; inset: -18%; }
   .fb-blob {
     position: absolute; border-radius: 50%;
     background-size: cover; background-position: center;
@@ -243,6 +249,9 @@ export const GLOBAL_CSS = `
   .content {
     flex: 1; overflow-y: auto; overflow-anchor: none; padding: 36px 44px 130px;
     min-width: 0; position: relative; z-index: 10;
+    /* Reserve the scrollbar lane even on views that don't scroll, so switching
+       between e.g. Home (fits) and Library (scrolls) never shifts the layout. */
+    scrollbar-gutter: stable;
     animation: fadeInSlide 0.22s ease-out;
     -webkit-font-smoothing: antialiased; text-rendering: auto;
   }
@@ -293,6 +302,18 @@ export const GLOBAL_CSS = `
   .row-action { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; opacity: 0; transition: var(--transition); display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 6px; }
   .track-row:hover .row-action { opacity: 1; }
   .row-action:hover { background: rgba(128,128,128,0.14); color: var(--text-primary); }
+
+  /* The per-row "Add to playlist" select is a utility control, not content —
+     keep it visually quiet at rest so rows read as clean title/artist/album
+     lines, and reveal it as a proper chip while the row is hovered. */
+  .track-row select.field {
+    background: transparent; border-color: rgba(128,128,128,0.14);
+    color: var(--text-secondary); opacity: 0.68; border-radius: 8px;
+  }
+  .track-row:hover select.field,
+  .track-row select.field:focus {
+    opacity: 1; border-color: rgba(128,128,128,0.34); color: var(--text-primary);
+  }
 
   /* Grouped library view — albums as rich, reorderable cards.
    Drag-over + dragging states use CSS classes so the per-event drag handler
@@ -816,7 +837,7 @@ export const GLOBAL_CSS = `
   .pl-opt-divider { height: 1px; background: rgba(128,128,128,0.14); margin: 6px 4px; }
   .play-lg { width: 52px; height: 52px; border-radius: 50%; border: none; background: var(--accent); color: var(--bg); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); }
   .play-lg:hover { transform: scale(1.08); }
-  .pl-empty { padding: 38px; text-align: center; color: var(--text-secondary); border: 1px dashed rgba(128,128,128,0.22); border-radius: 14px; font-size: 13px; }
+  .pl-empty { padding: 44px 36px; text-align: center; color: var(--text-secondary); border: 1.5px dashed rgba(128,128,128,0.24); border-radius: 16px; font-size: 13.5px; background: rgba(128,128,128,0.045); }
   .pl-track-head { display: grid; grid-template-columns: 26px 2.2fr 1.4fr 1.4fr 70px 32px; padding: 0 14px 10px; color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: 0.5px; border-bottom: 1px solid rgba(128,128,128,0.12); }
   .pl-track-row { display: grid; grid-template-columns: 26px 2.2fr 1.4fr 1.4fr 70px 32px; align-items: center; padding: 9px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; transition: var(--transition); }
   .pl-track-row:hover { background: rgba(128,128,128,0.08); }
@@ -832,7 +853,7 @@ export const GLOBAL_CSS = `
 
   /* Queue */
   .queue-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.1); margin-bottom: 8px; transition: var(--transition); }
-  .queue-card:hover { border-color: rgba(128,128,128,0.25); }
+  .queue-card:hover { border-color: rgba(128,128,128,0.25); transform: translateY(-1px); box-shadow: 0 8px 20px -12px rgba(0,0,0,0.55); }
   .queue-card[data-active="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
   .queue-actions { display: flex; align-items: center; gap: 6px; }
   .queue-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: var(--transition); }
@@ -1621,9 +1642,10 @@ export const GLOBAL_CSS = `
 
   /* Compact windows (<= 1400px): make the bottom player bar fit comfortably.
      The big "Lyrics" pill collapses to a plain round icon button (the same
-     treatment as its transport neighbors) and the least-essential right-side
-     extras — mini visualizer, fluid background, sleep timer — drop out via
-     [data-compact-hide] so the bar never overflows into the scrubber. The
+     treatment as its transport neighbors) and the mini visualizer drops out via
+     [data-compact-hide] so the bar never overflows into the scrubber. The two
+     smaller extras (fluid background, sleep timer) use the softer
+     [data-compact-soft-hide] cutoff at 1240px instead — see below. The
      transport cluster stays perfectly centered at every width because the two
      outer grid tracks are equal (minmax(0,1fr) and the middle track is
      content-sized. The wide volume slider collapses to a vertical popover that
@@ -1657,25 +1679,19 @@ export const GLOBAL_CSS = `
     .content { padding: 30px 28px 132px; }
   }
 
-  /* Tablet / Compact screens (<= 1300px): Reflows cleanly into mobile-friendly layout */
+  /* Soft-compact extras (fluid-background + sleep-timer buttons): they're small
+     (≈34px each) and measured to fit down to ~1160px, so they stay available on
+     the default 1320px window — they only drop out on genuinely tight widths.
+     The mini visualizer keeps the harder 1400px cutoff (it's 52px+ wide). */
+  @media (max-width: 1240px) {
+    [data-compact-soft-hide] { display: none !important; }
+  }
+
+  /* Tablet / Compact screens (<= 1300px): tighten chrome, keep the bento grid.
+     The home grid keeps its responsive column ladder (6 → 4 → 2 → 1, see the
+     blocks above/below) — collapsing it to a single column here made Home look
+     broken on the default window size (1320px) and on 125% DPI displays. */
   @media (max-width: 1300px) {
-    .home-grid {
-      grid-template-columns: 1fr;
-      gap: 14px;
-    }
-    .tile-hero, .tile-stats, .tile-quick-mix, .tile-recent, .tile-new,
-    .tile-most, .tile-albums, .tile-artists, .tile-pl {
-      grid-column: span 1 !important;
-      grid-row: auto !important;
-    }
-    .tile-hero {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 16px;
-    }
-    .tile-hero-art { width: 128px; height: 128px; }
-    .tile-stats-list { gap: 10px; }
-    .tile-most-grid, .tile-albums-grid { gap: 8px; }
     .spotify-player { padding: 0 10px; }
     .sp-actions-left { display: none; }
     .sp-title { font-size: 13px; }
@@ -1695,6 +1711,21 @@ export const GLOBAL_CSS = `
     .spotify-player { padding: 0 12px; }
     .sp-center { width: clamp(260px, 46vw, 600px); }
     .sp-vol-slider { display: none; }
+    /* Single-column bento only on genuinely tiny windows. */
+    .home-grid { grid-template-columns: 1fr; gap: 14px; }
+    .tile-hero, .tile-stats, .tile-quick-mix, .tile-recent, .tile-new,
+    .tile-most, .tile-albums, .tile-artists, .tile-pl {
+      grid-column: span 1 !important;
+      grid-row: auto !important;
+    }
+    .tile-hero {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .tile-hero-art { width: 128px; height: 128px; }
+    .tile-stats-list { gap: 10px; }
+    .tile-most-grid, .tile-albums-grid { gap: 8px; }
   }
 
   /* Custom frameless window title bar */
