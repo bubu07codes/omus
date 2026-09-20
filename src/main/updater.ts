@@ -1,4 +1,4 @@
-import { app, dialog, type BrowserWindow } from 'electron'
+import { app, dialog, shell, type BrowserWindow } from 'electron'
 import { autoUpdater, type ProgressInfo } from 'electron-updater'
 
 const OWNER = 'bubu07codes'
@@ -82,16 +82,23 @@ export async function checkForUpdates(win: BrowserWindow | null, manual = false)
     // electron-updater only exists inside the installed (packaged) app; in a
     // development build there is nothing to install on top of.
     if (!app.isPackaged) {
-      if (manual && win) {
-        await dialog.showMessageBox(win, {
-          type: 'info',
-          title: 'Check for Updates',
-          message: 'Auto-update only works in the installed app',
-          detail: `This is a development build (v${app.getVersion()}).\n\nDownload the latest installer from\nhttps://github.com/${OWNER}/${REPO}/releases/latest`
-        })
-      }
-      return
+  if (manual && win) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Check for Updates',
+      message: 'Auto-update only works in the installed app',
+      detail: `This is a development build (v${app.getVersion()}).`,
+      buttons: ['OK', 'Get Latest Release'],
+      defaultId: 1,
+      cancelId: 0
+    })
+
+    if (response === 1) {
+      await shell.openExternal(`https://github.com/${OWNER}/${REPO}/releases/latest`)
     }
+  }
+  return
+}
 
     if (manual && win) {
       sendStatus(win, { stage: 'checking', message: 'Connecting to GitHub…' })

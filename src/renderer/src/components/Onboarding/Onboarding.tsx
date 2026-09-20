@@ -79,10 +79,12 @@ const CSS = `
   .onb-card {
     width: min(880px, 100%); max-height: calc(100vh - 64px);
     display: flex; flex-direction: column; overflow: hidden;
-    background: color-mix(in srgb, var(--bg) 94%, #000);
-    border: 1px solid rgba(128,128,128,0.2);
+    background: color-mix(in srgb, var(--bg) 84%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 14%, transparent);
     border-radius: 26px;
-    box-shadow: 0 40px 120px rgba(0,0,0,0.65);
+    box-shadow: 0 40px 120px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06);
+    backdrop-filter: blur(28px) saturate(1.3);
+    -webkit-backdrop-filter: blur(28px) saturate(1.3);
     animation: onbCardIn .35s cubic-bezier(.16,1,.3,1);
   }
   @keyframes onbCardIn { from { opacity: 0; transform: translateY(24px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -138,7 +140,7 @@ const CSS = `
 
   .onb-feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; max-width: 760px; }
   .onb-feature {
-    background: var(--card-bg); border: 1px solid rgba(128,128,128,0.14); border-radius: 14px;
+    background: color-mix(in srgb, var(--card-bg) 78%, transparent); border: 1px solid color-mix(in srgb, var(--text-primary) 14%, transparent); border-radius: 14px;
     padding: 16px; text-align: left; display: flex; flex-direction: column; gap: 6px; transition: var(--transition);
   }
   .onb-feature:hover { transform: translateY(-2px); border-color: var(--accent); }

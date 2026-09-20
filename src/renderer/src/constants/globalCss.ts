@@ -51,6 +51,22 @@ export const GLOBAL_CSS = `
     padding-top: var(--titlebar-h, 0px);
     background: var(--bg); color: var(--text-primary);
     font-family: var(--font); overflow: hidden; position: relative;
+
+    /* ── Glass system (theme-derived, so every preset + custom theme adapts) ──
+       Tints are translucent mixes of the theme's own surfaces. --glass-edge
+       derives from text-primary so hairline borders keep contrast on dark AND
+       light themes; --glass-sheen is the lit top edge (reads as glass on dark,
+       harmlessly disappears on light). backdrop-filter is used ONLY on small
+       floating chrome (title bar, player bar, rail, modal, menus) — never on
+       the big scrolling surfaces — so the per-frame compositor cost stays tiny
+       (see the fluid-bg memory budget note before raising any blur value). */
+    --glass-bg: color-mix(in srgb, var(--card-bg) 78%, transparent);
+    --glass-bg-strong: color-mix(in srgb, var(--card-bg) 87%, transparent);
+    --glass-panel: color-mix(in srgb, var(--bg) 84%, transparent);
+    --glass-chrome: color-mix(in srgb, var(--sidebar-bg) 76%, transparent);
+    --glass-edge: color-mix(in srgb, var(--text-primary) 14%, transparent);
+    --glass-sheen: rgba(255, 255, 255, 0.06);
+    --glass-blur: 24px;
   }
 
   /* Fluid Ambient Orbs */
@@ -185,6 +201,16 @@ export const GLOBAL_CSS = `
     overflow: hidden;
   }
   .rail.rail-resizing { transition: none; }
+  /* Fluid-gated rail glass: with the ambient background enabled there is
+     actually something animated behind the rail to melt into, so it gets a
+     real backdrop blur. Without the fluid bg the rail keeps its solid color —
+     a blur over a flat color is invisible and would only add a compositor
+     layer for nothing. */
+  .app-shell:has(.fluid-bg-container) .rail {
+    background: var(--glass-chrome);
+    backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  }
   .rail-collapse-btn {
     width: 28px; height: 28px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -235,14 +261,14 @@ export const GLOBAL_CSS = `
     align-items: center; justify-content: center; gap: 6px; transition: var(--transition);
     font-family: var(--font); position: relative; }
   .rail-btn:hover { color: var(--text-primary); background: rgba(128,128,128,0.12); }
-  .rail-btn[data-active="true"] { background: var(--card-bg); color: var(--text-primary); }
+  .rail-btn[data-active="true"] { background: var(--glass-bg-strong); color: var(--text-primary); box-shadow: inset 0 1px 0 var(--glass-sheen); }
   .rail-btn[data-active="true"] svg { color: var(--accent); transform: scale(1.1); }
   .rail-btn .lbl { font-size: 11.5px; font-weight: 800; letter-spacing: 0.4px; }
   .rail-actions { display: flex; flex-direction: column; gap: 8px; padding: 0 12px; width: 100%; }
   .rail-fab { width: 100%; height: 40px; border-radius: 12px; border: none; cursor: pointer; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition); }
   .rail-fab.primary { background: var(--accent); color: var(--bg); }
   .rail-fab.primary:hover { filter: brightness(1.12); }
-  .rail-fab.ghost { background: var(--card-bg); color: var(--text-primary); border: 1px solid rgba(128,128,128,0.18); }
+  .rail-fab.ghost { background: var(--glass-bg-strong); color: var(--text-primary); border: 1px solid var(--glass-edge); }
   .rail-fab.ghost:hover { background: rgba(128,128,128,0.1); }
 
   /* Main content */
@@ -263,8 +289,8 @@ export const GLOBAL_CSS = `
   .eyebrow { font-size: 12px; font-weight: 800; color: var(--text-secondary); letter-spacing: 0.8px; margin: 0 0 20px; text-transform: uppercase; }
 
   /* Search pill */
-  .search-pill { display: flex; align-items: center; gap: 10px; background: var(--card-bg);
-    border: 1px solid rgba(128,128,128,0.16); border-radius: 999px; padding: 10px 16px;
+  .search-pill { display: flex; align-items: center; gap: 10px; background: var(--glass-bg);
+    border: 1px solid var(--glass-edge); border-radius: 999px; padding: 10px 16px;
     max-width: 380px; flex: 1; min-width: 200px; transition: var(--transition); }
   .search-pill:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(128,128,128,0.15); }
   .search-pill input { flex: 1; background: transparent; border: none; outline: none;
@@ -274,7 +300,7 @@ export const GLOBAL_CSS = `
   .search-pill svg:hover { color: var(--text-primary); }
 
   /* Segmented control */
-  .seg { display: flex; gap: 2px; background: var(--card-bg); padding: 4px; border-radius: 10px; border: 1px solid rgba(128,128,128,0.16); }
+  .seg { display: flex; gap: 2px; background: var(--glass-bg); padding: 4px; border-radius: 10px; border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-sheen); }
   .seg button { background: transparent; border: none; color: var(--text-secondary); padding: 7px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: var(--font); transition: var(--transition); display: flex; align-items: center; gap: 6px; }
   .seg button[data-active="true"] { background: var(--accent); color: var(--bg); }
 
@@ -283,7 +309,7 @@ export const GLOBAL_CSS = `
   .track-head-row { display: grid; grid-template-columns: 32px 2.2fr 1.4fr 1.4fr 70px 150px 32px 32px; padding: 0 14px 10px; color: var(--text-secondary); font-size: 12px; font-weight: 800; letter-spacing: 0.6px; border-bottom: 1px solid rgba(128,128,128,0.12); text-transform: uppercase; }
   .track-row { display: grid; grid-template-columns: 32px 2.2fr 1.4fr 1.4fr 70px 150px 32px 32px; align-items: center; padding: 10px 14px; border-radius: 10px; cursor: pointer; font-size: 13.5px; transition: var(--transition); margin-bottom: 2px; }
   .track-row:hover { background: rgba(128,128,128,0.08); }
-  .track-row[data-active="true"] { background: var(--card-bg); box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px rgba(128,128,128,0.18); }
+  .track-row[data-active="true"] { background: var(--glass-bg-strong); box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px var(--glass-edge); }
   .track-row .idx { color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 700; }
   .art-thumb { width: 36px; height: 36px; border-radius: 8px; overflow: hidden; background: rgba(128,128,128,0.14); flex-shrink: 0; }
   .art-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -338,7 +364,7 @@ export const GLOBAL_CSS = `
   .library-group-head:hover {
     background: rgba(128,128,128,0.06);
   }
-  .library-group-head[data-over="true"] { background: var(--card-bg); border-color: var(--accent); }
+  .library-group-head[data-over="true"] { background: var(--glass-bg-strong); border-color: var(--accent); }
   .library-group-head[data-dragging="true"] { opacity: 0.5; }
   .library-group[data-collapsed="true"] .library-group-body { display: none; }
 
@@ -466,7 +492,7 @@ export const GLOBAL_CSS = `
     border: 1px solid transparent;
     transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
   }
-  .library-group-row[data-over="true"] { background: var(--card-bg); border-color: var(--accent); }
+  .library-group-row[data-over="true"] { background: var(--glass-bg-strong); border-color: var(--accent); }
   .library-group-row[data-dragging="true"] { opacity: 0.5; }
 
   [data-density="compact"] .track-row { padding: 5px 14px; font-size: 12.5px; }
@@ -475,7 +501,7 @@ export const GLOBAL_CSS = `
 
   /* Grid cards */
   .track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 18px; }
-  .track-card { cursor: pointer; background: var(--card-bg); padding: 12px; border-radius: 14px; border: 1px solid rgba(128,128,128,0.12); position: relative; transition: var(--transition); overflow: hidden; }
+  .track-card { cursor: pointer; background: var(--glass-bg); padding: 12px; border-radius: 14px; border: 1px solid var(--glass-edge); position: relative; transition: var(--transition); overflow: hidden; box-shadow: inset 0 1px 0 var(--glass-sheen); }
   .track-card:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 10px 25px -10px rgba(0,0,0,0.5); }
   .track-card:active { transform: scale(0.98); }
   .track-card .art { width: 100%; aspect-ratio: 1/1; background: rgba(128,128,128,0.14); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
@@ -519,10 +545,11 @@ export const GLOBAL_CSS = `
   .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
   .btn-ghost {
-    background: var(--card-bg);
+    background: var(--glass-bg);
     color: var(--text-primary);
-    border: 1px solid rgba(128,128,128,0.18);
+    border: 1px solid var(--glass-edge);
     padding: 10px 20px;
+    box-shadow: inset 0 1px 0 var(--glass-sheen);
   }
   .btn-ghost:hover {
     background: rgba(128,128,128,0.12);
@@ -593,7 +620,7 @@ export const GLOBAL_CSS = `
   }
 
   /* Form elements */
-  .field { background: var(--card-bg); border: 1px solid rgba(128,128,128,0.18); color: var(--text-primary); padding: 10px 13px; border-radius: 10px; width: 100%; outline: none; font-size: 13px; font-family: var(--font); transition: var(--transition); }
+  .field { background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); color: var(--text-primary); padding: 10px 13px; border-radius: 10px; width: 100%; outline: none; font-size: 13px; font-family: var(--font); transition: var(--transition); }
   .field:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(128,128,128,0.15); outline: none; }
   .field:disabled { opacity: 0.5; cursor: not-allowed; }
   .lbl-caps { font-size: 12px; color: var(--text-secondary); font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; display: block; margin-bottom: 6px; }
@@ -701,21 +728,31 @@ export const GLOBAL_CSS = `
   .eq span:nth-child(2) { animation-delay: 0.2s; }
   .eq span:nth-child(3) { animation-delay: 0.4s; }
 
-  /* Settings */
-  .settings-section { margin-bottom: 32px; padding-bottom: 32px; border-bottom: 1px solid rgba(128,128,128,0.1); }
-  .settings-section:last-child { border-bottom: none; }
-  .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
+  /* Settings — grouped glass cards with airy rows (no dividers) */
+  .settings-section {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-edge);
+    border-radius: 14px;
+    padding: 12px 18px;
+    margin-top: 18px;
+    margin-bottom: 18px;
+    box-shadow: inset 0 1px 0 var(--glass-sheen);
+  }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; }
   .settings-row-text { min-width: 0; }
   .settings-row-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; color: var(--text-primary); }
   .settings-row-desc { font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
+@media (max-width: 9000px) {
+  .settings-section { padding: 16px 18px; } /* Updated media query override */
+}
 
   /* Settings sidebar categories */
   .settings-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; max-width: 980px; margin: 0 auto; }
   .settings-page-title { font-size: 26px; font-weight: 900; letter-spacing: -0.4px; margin: 0 0 18px; }
-  .settings-nav { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 2px; padding: 8px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.14); border-radius: 14px; }
+  .settings-nav { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 2px; padding: 8px; background: var(--glass-bg); border: 1px solid var(--glass-edge); border-radius: 14px; box-shadow: inset 0 1px 0 var(--glass-sheen); }
   .settings-nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 9px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 700; font-family: var(--font); cursor: pointer; text-align: left; transition: var(--transition); }
   .settings-nav-btn:hover { color: var(--text-primary); background: rgba(128,128,128,0.1); }
-  .settings-nav-btn[data-active="true"] { color: var(--accent); background: rgba(128,128,128,0.12); }
+  .settings-nav-btn[data-active="true"] { color: var(--accent); background: rgba(128,128,128,0.12); box-shadow: inset 2px 0 0 var(--accent); }
   .settings-nav-btn svg { flex-shrink: 0; }
   .settings-content { min-width: 0; }
   .settings-cat { scroll-margin-top: 12px; }
@@ -734,16 +771,19 @@ export const GLOBAL_CSS = `
   .opt-card { padding: 13px 14px; border-radius: 12px; cursor: pointer; text-align: left; border: 1px solid rgba(128,128,128,0.16); background: transparent; color: var(--text-secondary); font-family: var(--font); transition: var(--transition); font-size: 13px; }
   .opt-card:hover { border-color: var(--accent); color: var(--text-primary); }
   .opt-card:active { transform: scale(0.98); }
-  .opt-card[data-active="true"] { background: var(--card-bg); border-color: var(--accent); color: var(--text-primary); }
+  .opt-card[data-active="true"] { background: var(--glass-bg-strong); border-color: var(--accent); color: var(--text-primary); }
 
   /* Bottom player bar */
   .spotify-player {
     position: fixed; bottom: 0; left: 0; right: 0; height: 92px;
-    background: var(--sidebar-bg);
-    border-top: 1px solid rgba(128,128,128,0.16);
+    background: var(--glass-chrome);
+    border-top: 1px solid var(--glass-edge);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-sheen);
     display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center; padding: 0 24px; z-index: 100; user-select: none;
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.35); transition: background 0.3s ease;
+    transition: background 0.3s ease;
   }
   .sp-left { display: flex; align-items: center; gap: 14px; min-width: 0; justify-self: start; }
   .sp-cover-wrap { position: relative; width: 56px; height: 56px; border-radius: 8px; overflow: hidden;
@@ -780,9 +820,9 @@ export const GLOBAL_CSS = `
   .sp-scrub-thumb-rail { position: absolute; inset: 0; pointer-events: none; transform: translateX(0); will-change: transform; }
   .sp-scrub-thumb { position: absolute; left: 0; top: 50%; transform: translate(-50%,-50%) scale(0); width: 12px; height: 12px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1); }
   .sp-scrub-track:hover .sp-scrub-thumb { transform: translate(-50%,-50%) scale(1); }
-  .sp-scrub-tooltip { position: absolute; bottom: 22px; transform: translateX(-50%); background: var(--card-bg); border: 1px solid rgba(128,128,128,0.24); color: var(--text-primary); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+  .sp-scrub-tooltip { position: absolute; bottom: 22px; transform: translateX(-50%); background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: var(--text-primary); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
   .sp-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; justify-self: end; }
-  .sp-btn-lyrics { display: flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.18); color: var(--text-secondary); font-size: 12px; font-weight: 800; cursor: pointer; font-family: var(--font); transition: var(--transition); }
+  .sp-btn-lyrics { display: flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); color: var(--text-secondary); font-size: 12px; font-weight: 800; cursor: pointer; font-family: var(--font); transition: var(--transition); }
   .sp-btn-lyrics:hover { color: var(--text-primary); border-color: var(--accent); transform: translateY(-1px); }
   .sp-btn-lyrics[data-active="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
   .sp-vol-group { display: flex; align-items: center; gap: 8px; margin-left: 6px; position: relative; }
@@ -795,7 +835,7 @@ export const GLOBAL_CSS = `
 
   /* Playlists */
   .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 18px; }
-  .pl-card { cursor: pointer; background: var(--card-bg); padding: 14px 14px 12px; border-radius: 14px; border: 1px solid rgba(128,128,128,0.12); transition: var(--transition); position: relative; overflow: hidden; }
+  .pl-card { cursor: pointer; background: var(--glass-bg); padding: 14px 14px 12px; border-radius: 14px; border: 1px solid var(--glass-edge); transition: var(--transition); position: relative; overflow: hidden; box-shadow: inset 0 1px 0 var(--glass-sheen); }
   .pl-card:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 10px 25px -10px rgba(0,0,0,0.5); }
   .pl-card:active { transform: scale(0.98); }
   .pl-card-cover { width: 100%; aspect-ratio: 1/1; border-radius: 10px; overflow: hidden; margin-bottom: 12px; position: relative; background: rgba(128,128,128,0.14); }
@@ -824,7 +864,7 @@ export const GLOBAL_CSS = `
   .pl-card-cover.collage img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .pl-options-wrap { position: relative; }
   .pl-options-backdrop { position: fixed; inset: 0; z-index: 55; }
-  .pl-options-menu { position: absolute; right: 0; top: calc(100% + 8px); width: 288px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.18); border-radius: 14px; padding: 8px; box-shadow: 0 18px 40px rgba(0,0,0,0.5); z-index: 60; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); max-height: 70vh; overflow-y: auto; }
+  .pl-options-menu { position: absolute; right: 0; top: calc(100% + 8px); width: 288px; background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); border-radius: 14px; padding: 8px; box-shadow: 0 18px 40px rgba(0,0,0,0.5), inset 0 1px 0 var(--glass-sheen); z-index: 60; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); max-height: 70vh; overflow-y: auto; }
   .pl-opt-label { font-size: 11px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 8px 4px; }
   .pl-opt-row { display: flex; align-items: center; gap: 10px; width: 100%; background: transparent; border: none; color: var(--text-primary); font-family: var(--font); font-size: 13px; padding: 8px; border-radius: 8px; cursor: pointer; text-align: left; }
   .pl-opt-row:hover { background: rgba(128,128,128,0.1); }
@@ -841,18 +881,18 @@ export const GLOBAL_CSS = `
   .pl-track-head { display: grid; grid-template-columns: 26px 2.2fr 1.4fr 1.4fr 70px 32px; padding: 0 14px 10px; color: var(--text-secondary); font-size: 12px; font-weight: 700; letter-spacing: 0.5px; border-bottom: 1px solid rgba(128,128,128,0.12); }
   .pl-track-row { display: grid; grid-template-columns: 26px 2.2fr 1.4fr 1.4fr 70px 32px; align-items: center; padding: 9px 14px; border-radius: 10px; cursor: pointer; font-size: 13px; transition: var(--transition); }
   .pl-track-row:hover { background: rgba(128,128,128,0.08); }
-  .pl-track-row[data-active="true"] { background: var(--card-bg); }
+  .pl-track-row[data-active="true"] { background: var(--glass-bg-strong); }
   .pl-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
 
   /* Add-to-playlist modal */
   .add-grid { display: grid; grid-template-columns: 26px 2.2fr 1.4fr 1.4fr; gap: 12px; align-items: center; padding: 9px 12px; border-radius: 10px; cursor: pointer; font-size: 13px; transition: var(--transition); }
   .add-grid:hover { background: rgba(128,128,128,0.08); }
-  .add-grid[data-active="true"] { background: var(--card-bg); }
+  .add-grid[data-active="true"] { background: var(--glass-bg-strong); }
   .add-check { width: 18px; height: 18px; border-radius: 6px; border: 2px solid rgba(128,128,128,0.4); background: transparent; display: flex; align-items: center; justify-content: center; color: var(--bg); flex-shrink: 0; transition: var(--transition); }
   .add-check.on { background: var(--accent); border-color: var(--accent); }
 
   /* Queue */
-  .queue-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 12px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.1); margin-bottom: 8px; transition: var(--transition); }
+  .queue-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 12px; background: var(--glass-bg); border: 1px solid var(--glass-edge); margin-bottom: 8px; transition: var(--transition); box-shadow: inset 0 1px 0 var(--glass-sheen); }
   .queue-card:hover { border-color: rgba(128,128,128,0.25); transform: translateY(-1px); box-shadow: 0 8px 20px -12px rgba(0,0,0,0.55); }
   .queue-card[data-active="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
   .queue-actions { display: flex; align-items: center; gap: 6px; }
@@ -896,14 +936,14 @@ export const GLOBAL_CSS = `
   .lyrics-options-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 2px 8px 10px; }
   .lyrics-options-row .lyrics-offset-badge { min-width: 70px; text-align: center; }
 
-  /* Modals */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.72); backdrop-filter: blur(12px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 32px; animation: fadeIn 0.15s ease; }
-  .modal { width: 100%; max-width: 920px; background: var(--bg); border: 1px solid rgba(128,128,128,0.16); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; max-height: 88vh; animation: fadeInSlide 0.2s cubic-bezier(0.16,1,0.3,1); box-shadow: 0 20px 60px rgba(0,0,0,0.7); position: relative; z-index: 1001; }
+  /* Modals — overlay melts the app behind; the panel itself is glass on top. */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 32px; animation: fadeIn 0.15s ease; }
+  .modal { width: 100%; max-width: 920px; background: var(--glass-panel); border: 1px solid var(--glass-edge); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; max-height: 88vh; animation: fadeInSlide 0.2s cubic-bezier(0.16,1,0.3,1); box-shadow: 0 20px 60px rgba(0,0,0,0.65), inset 0 1px 0 var(--glass-sheen); backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(150%); -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(150%); position: relative; z-index: 1001; }
   .modal-head { padding: 20px 24px; border-bottom: 1px solid rgba(128,128,128,0.1); display: flex; justify-content: space-between; align-items: center; }
   .modal-body { display: grid; grid-template-columns: 260px 1fr; flex: 1; overflow: hidden; }
   .modal-list { border-right: 1px solid rgba(128,128,128,0.1); overflow-y: auto; padding: 10px; }
   .modal-list-item { padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 3px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; transition: var(--transition); }
-  .modal-list-item[data-active="true"] { background: var(--card-bg); font-weight: 700; }
+  .modal-list-item[data-active="true"] { background: var(--glass-bg-strong); font-weight: 700; }
   .modal-edit { padding: 24px; overflow-y: auto; }
   .modal-foot { padding: 16px 24px; border-top: 1px solid rgba(128,128,128,0.1); display: flex; justify-content: flex-end; gap: 12px; }
 
@@ -962,8 +1002,8 @@ export const GLOBAL_CSS = `
   .fullscreen-lyrics-scroll { height: 100%; min-width: 0; min-height: 0; max-height: 100%; align-self: stretch; justify-self: stretch; overflow: hidden; overflow-x: hidden; padding: 0 24px 0 0; scrollbar-gutter: stable; overscroll-behavior: contain; mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); }
   .fullscreen-lyrics-empty { color: var(--text-secondary); opacity: 0.85; font-size: 17px; line-height: 1.5; max-width: 420px; min-height: 240px; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; margin: 0 auto; }
   .fullscreen-controls-bar { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(128,128,128,0.14); gap: 20px; }
-  .lyrics-preview-box { background: var(--card-bg); border: 1px solid rgba(128,128,128,0.18); border-radius: 14px; padding: 24px; margin-top: 16px; overflow: hidden; position: relative; }
-  .pl-track { padding: 10px 12px; background: var(--card-bg); border: 1px solid rgba(128,128,128,0.1); border-radius: 12px; margin-bottom: 7px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .lyrics-preview-box { background: var(--glass-bg); border: 1px solid var(--glass-edge); border-radius: 14px; padding: 24px; margin-top: 16px; overflow: hidden; position: relative; box-shadow: inset 0 1px 0 var(--glass-sheen); }
+  .pl-track { padding: 10px 12px; background: var(--glass-bg); border: 1px solid var(--glass-edge); border-radius: 12px; margin-bottom: 7px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
   .pl-track-info { display: flex; align-items: center; gap: 12px; }
 
   /* Home — Clean Music-First Layout */
@@ -1008,10 +1048,14 @@ export const GLOBAL_CSS = `
     margin: 0 auto;
   }
 
-  /* Home Section Base — premium cards with subtle borders */
+  /* Home Section Base — slight glass: translucent card tint + lit top edge.
+     Deliberately tint-only (no backdrop-filter): tiles sit over the scrolling
+     view and there can be nine of them, so blurring would re-raster during
+     every scroll frame. The fluid orbs behind are already soft, so the
+     translucency alone reads as glass. */
   .home-tile {
-    background: color-mix(in srgb, var(--card-bg) 92%, transparent);
-    border: 1px solid rgba(128,128,128,0.14);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-edge);
     border-radius: 18px;
     padding: 18px 20px;
     position: relative;
@@ -1021,7 +1065,7 @@ export const GLOBAL_CSS = `
     min-height: 0;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 6px 20px -6px rgba(0,0,0,0.22);
+    box-shadow: 0 6px 20px -6px rgba(0,0,0,0.22), inset 0 1px 0 var(--glass-sheen);
     transition:
       border-color 0.22s ease,
       box-shadow 0.22s ease,
@@ -1040,32 +1084,31 @@ export const GLOBAL_CSS = `
     transform: translateY(-2px);
   }
 
-  /* Desktop 6-column assignments: Every row pairs to exactly 6 */
+  /* Desktop 6-column assignments: the hero is a full-width spotlight banner, so
+     its presence/absence never shifts or stretches the other tiles. Every other
+     tile is half-width (span 3), which pairs into complete rows with no holes.
+     The conditional tiles (recently played / heavy rotation / playlists) can
+     make the tile count odd — the last tile then gets .tile-wide (see below) to
+     fill the final row instead of leaving a blank half-row. */
   .tile-hero {
-    grid-column: span 4;
-    grid-row: span 2;
+    grid-column: 1 / -1;
     flex-direction: row;
     align-items: center;
     gap: 26px;
     /* The hero stays the one featured panel on Home. */
-    background: color-mix(in srgb, var(--card-bg) 88%, transparent);
-    border: 1px solid rgba(128,128,128,0.14);
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-edge);
     border-radius: 18px;
     padding: 22px 26px;
-    box-shadow: 0 14px 38px -8px rgba(0,0,0,0.45);
+    box-shadow: 0 14px 38px -8px rgba(0,0,0,0.45), inset 0 1px 0 var(--glass-sheen);
   }
   .tile-hero:hover {
     border-color: color-mix(in srgb, var(--accent) 22%, rgba(128,128,128,0.24));
     transform: none;
   }
-  .tile-stats { grid-column: span 2; grid-row: span 1; }
-  .tile-quick-mix { grid-column: span 2; grid-row: span 1; }
-  .tile-recent { grid-column: span 3; }
-  .tile-new { grid-column: span 3; }
-  .tile-most { grid-column: span 3; }
-  .tile-albums { grid-column: span 3; }
-  .tile-artists { grid-column: span 3; }
-  .tile-pl { grid-column: span 3; }
+  .tile-stats, .tile-quick-mix { grid-column: span 3; }
+  .tile-recent, .tile-new, .tile-most, .tile-albums,
+  .tile-artists, .tile-pl { grid-column: span 3; }
 
   /* Section Header */
   .tile-head {
@@ -1607,19 +1650,11 @@ export const GLOBAL_CSS = `
       gap: 16px;
     }
     .tile-hero {
-      grid-column: span 4;
-      grid-row: span 1;
       gap: 22px;
     }
     .tile-hero-art { width: 140px; height: 140px; }
-    .tile-stats { grid-column: span 2; }
-    .tile-quick-mix { grid-column: span 2; }
-    .tile-recent { grid-column: span 2; }
-    .tile-new { grid-column: span 2; }
-    .tile-most { grid-column: span 2; }
-    .tile-albums { grid-column: span 2; }
-    .tile-artists { grid-column: span 2; }
-    .tile-pl { grid-column: span 2; }
+    .tile-stats, .tile-quick-mix, .tile-recent, .tile-new,
+    .tile-most, .tile-albums, .tile-artists, .tile-pl { grid-column: span 2; }
   }
 
   /* Narrow (680px - 860px): 2-column, comfortable card rows */
@@ -1728,13 +1763,23 @@ export const GLOBAL_CSS = `
     .tile-most-grid, .tile-albums-grid { gap: 8px; }
   }
 
-  /* Custom frameless window title bar */
+  /* When conditional tiles (recently played / heavy rotation / playlists) make
+     the bento tile count odd, the final row would be half-empty. The last
+     rendered tile gets .tile-wide and stretches across the whole row instead.
+     Must stay AFTER the ladder blocks above so it overrides their spans. */
+  .tile-wide { grid-column: 1 / -1 !important; }
+  .tile-wide.tile-artists .tile-artists-row { max-width: 620px; }
+
+  /* Custom frameless window title bar — floating glass strip over the view. */
   .title-bar {
     position: fixed; top: 0; left: 0; right: 0; height: var(--titlebar-h, 0px);
     z-index: 100000; display: flex; align-items: center;
     justify-content: space-between;
-    background: color-mix(in srgb, var(--sidebar-bg) 96%, transparent);
-    border-bottom: 1px solid rgba(128,128,128,0.14);
+    background: var(--glass-chrome);
+    border-bottom: 1px solid var(--glass-edge);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    box-shadow: inset 0 1px 0 var(--glass-sheen);
     -webkit-app-region: drag; user-select: none; flex-shrink: 0;
   }
   .title-bar-center {
@@ -1801,10 +1846,12 @@ export const GLOBAL_CSS = `
     position: absolute; top: calc(100% + 10px); left: 50%;
     width: min(500px, 92vw);
     transform: translateX(-50%);
-    background: color-mix(in srgb, var(--card-bg) 98%, transparent);
-    border: 1px solid rgba(128,128,128,0.16);
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-edge);
     border-radius: 14px;
-    box-shadow: 0 20px 55px rgba(0,0,0,0.45), 0 0 0 1px rgba(128,128,128,0.05);
+    box-shadow: 0 20px 55px rgba(0,0,0,0.45), 0 0 0 1px rgba(128,128,128,0.05), inset 0 1px 0 var(--glass-sheen);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
     padding: 8px; z-index: 100001;
     overflow-y: auto; max-height: min(520px, 68vh);
     overscroll-behavior: contain;
@@ -2032,4 +2079,87 @@ export const GLOBAL_CSS = `
     transform: scale(1.15); background: var(--accent);
   }
   .mini-close:hover { background: rgba(255,90,90,0.4); }
+
+  /* ============================================================
+     MOTION SYSTEM — consistent, compositor-safe animation.
+     • Every page slides+fades in on switch (.view-fade replays because
+       each view root has a React key and remounts).
+     • Every clickable control dips slightly while pressed (:active).
+     • Transform/opacity only — never layout properties or filters.
+     ============================================================ */
+  @keyframes viewIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.995); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .view-fade { animation: viewIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+
+  /* Press feedback. Small controls dip 4%, cards & wide rows 1.5%.
+     (.seg button, .switch-label and .pl-opt-row are intentionally excluded —
+     the "immunity guard" rule pins them to transform:none so the animation
+     presets can't distort delicate controls. Controls that already ship their
+     own :active scale — opt-card, quick-chip, tile-stat, sp-play-btn,
+     sp-heart-btn, track/pl cards — are not repeated here.) */
+  .btn:active, .btn-plain:active, .rail-btn:active, .rail-collapse-btn:active,
+  .rail-fab:active, .settings-nav-btn:active, .gs-item:active, .gs-clear:active,
+  .pl-opt-chip:active, .modal-list-item:active, .theme-card:active,
+  .sp-btn-icon:active, .sp-btn-lyrics:active, .card-x:active, .pl-card-x:active {
+    transform: scale(0.96);
+  }
+  .tile-row:active, .track-row:active, .pl-track-row:active, .add-grid:active,
+  .queue-card:active, .tile-album:active, .tile-artist:active, .tile-most-cell:active {
+    transform: scale(0.985);
+  }
+
+  /* Keyboard focus ring — only shows for keyboard navigation, never mouse. */
+  button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: 2px;
+  }
+  .field:focus-visible { outline: none; }
+
+  /* OS-level reduced motion (Windows "animation effects" off): everything
+     calms down instantly, including the fluid background and the EQ bars. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ============================================================
+     GLASS FALLBACKS & ACCESSIBILITY — must stay LAST in this
+     stylesheet so they win the cascade over every glass surface.
+     1) Without compositor backdrop-filter support (never expected
+        in Electron, but cheap insurance for custom themes/forks)
+        every glass surface falls back to its opaque theme surface.
+     2) prefers-reduced-transparency (e.g. Windows "transparency
+        effects" turned off in OS settings) restores the same opaque
+        surfaces — text contrast always beats the effect.
+     The home tiles are tint-only and don't depend on backdrop-filter,
+     so they stay translucent either way (solid app bg sits behind
+     them when the fluid background is off).
+     ============================================================ */
+  @supports not (backdrop-filter: blur(2px)) {
+    .title-bar, .spotify-player, .modal, .gs-dropdown, .pl-options-menu,
+    .sp-scrub-tooltip,
+    .app-shell:has(.fluid-bg-container) .rail {
+      backdrop-filter: none; -webkit-backdrop-filter: none;
+    }
+    .title-bar, .spotify-player,
+    .app-shell:has(.fluid-bg-container) .rail { background: var(--sidebar-bg); }
+    .modal { background: var(--bg); }
+    .gs-dropdown, .pl-options-menu, .sp-scrub-tooltip { background: var(--card-bg); }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .title-bar, .spotify-player, .modal, .gs-dropdown, .pl-options-menu,
+    .sp-scrub-tooltip,
+    .app-shell:has(.fluid-bg-container) .rail {
+      backdrop-filter: none; -webkit-backdrop-filter: none;
+    }
+    .title-bar, .spotify-player,
+    .app-shell:has(.fluid-bg-container) .rail { background: var(--sidebar-bg); }
+    .modal { background: var(--bg); }
+    .gs-dropdown, .pl-options-menu, .sp-scrub-tooltip { background: var(--card-bg); }
+  }
 `

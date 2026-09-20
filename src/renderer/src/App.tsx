@@ -191,9 +191,8 @@ const SETTINGS_CATS: {
   Icon: React.ComponentType<{ size?: number | string }>
 }[] = [
   { id: 'lyrics', label: 'Lyrics', Icon: Mic2 },
-  { id: 'audio', label: 'Sound & Vision', Icon: Sliders },
-  { id: 'fullscreen', label: 'Fullscreen', Icon: MonitorPlay },
-  { id: 'ambience', label: 'Ambience', Icon: Sparkles },
+  { id: 'audio', label: 'Audio', Icon: Sliders },
+  { id: 'nowplaying', label: 'Fullscreen', Icon: MonitorPlay },
   { id: 'integrations', label: 'Integrations', Icon: Plug },
   { id: 'appearance', label: 'Appearance', Icon: Palette },
   { id: 'playback', label: 'Playback', Icon: Play },
@@ -2415,11 +2414,6 @@ export default function App() {
     void loadAndPlayIndex(0, homeLikedTracks)
   }, [homeLikedTracks, loadAndPlayIndex])
 
-  const handlePlayRecentAdded = useCallback(() => {
-    if (homeRecentAdded.length === 0) return
-    void loadAndPlayIndex(0, homeRecentAdded)
-  }, [homeRecentAdded, loadAndPlayIndex])
-
   const handlePlayMostPlayed = useCallback(() => {
     if (homeMostPlayed.length === 0) return
     void loadAndPlayIndex(
@@ -2584,6 +2578,20 @@ export default function App() {
     '--font': activeFontFamily,
     '--titlebar-h': `${TITLEBAR_H}px`
   } as React.CSSProperties
+
+  // Home bento flags: which tiles actually render. Every non-hero tile is
+  // half-width and pairs into complete grid rows; when the conditional tiles
+  // (recently played / heavy rotation / playlists) drop out they can leave the
+  // final row half-empty — the last rendered tile then gets .tile-wide to fill
+  // it (see GLOBAL_CSS). The hero itself is always full-width, so its presence
+  // never affects the pairing.
+  const homeCondTileCount =
+    (homeRecentlyPlayed.length > 0 ? 1 : 0) +
+    (homeMostPlayed.length > 0 ? 1 : 0) +
+    (playlists.length > 0 ? 1 : 0)
+  const homeOddTiles = (5 + homeCondTileCount) % 2 === 1
+  const homePlTileWide = homeOddTiles && playlists.length > 0
+  const homeArtistsTileWide = homeOddTiles && playlists.length === 0
 
   // ---- Mini mode: dedicated ultra-light UI ----
   // The main process collapses the window into the always-on-top corner widget.
@@ -3087,7 +3095,7 @@ export default function App() {
                           <button
                             className="sp-btn-icon"
                             onClick={toggleFullscreen}
-                            title="Fullscreen Now Playing (F)"
+                            title="Fullscreen View(F)"
                           >
                             <Maximize2 size={16} />
                           </button>
@@ -3169,32 +3177,6 @@ export default function App() {
                       >
                         <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />
                       </button>
-                    </div>
-
-                    <div className="quick-actions-row">
-                      <button
-                        className="quick-chip"
-                        onClick={handleShuffleAll}
-                        title="Shuffle all library tracks"
-                      >
-                        <Shuffle size={12} /> Shuffle
-                      </button>
-                      <button
-                        className="quick-chip"
-                        onClick={handlePlayRecentAdded}
-                        title="Play recent additions"
-                      >
-                        <Sparkles size={12} /> Fresh
-                      </button>
-                      {homeMostPlayed.length > 0 && (
-                        <button
-                          className="quick-chip"
-                          onClick={handlePlayMostPlayed}
-                          title="Play top tracks"
-                        >
-                          <Flame size={12} /> Top Hits
-                        </button>
-                      )}
                     </div>
                   </section>
 
@@ -3404,7 +3386,9 @@ export default function App() {
                   </section>
 
                   {/* TOP ARTISTS */}
-                  <section className="home-tile tile-artists">
+                  <section
+                    className={`home-tile tile-artists${homeArtistsTileWide ? ' tile-wide' : ''}`}
+                  >
                     <div className="tile-head">
                       <Flame size={15} />
                       <h3>Top Artists</h3>
@@ -3448,7 +3432,9 @@ export default function App() {
 
                   {/* PLAYLISTS */}
                   {playlists.length > 0 && (
-                    <section className="home-tile tile-pl">
+                    <section
+                      className={`home-tile tile-pl${homePlTileWide ? ' tile-wide' : ''}`}
+                    >
                       <div className="tile-head">
                         <ListMusic size={15} />
                         <h3>Playlists</h3>
@@ -4352,12 +4338,12 @@ export default function App() {
             <div className="settings-content">
             <h2 className="settings-page-title">Settings</h2>
             <section id="settings-lyrics" className="settings-cat">
-            <p className="eyebrow">Lyrics Display & Typography</p>
+            <p className="eyebrow">Lyrics</p>
             <div className="settings-section">
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Alignment</div>
-                  <div className="settings-row-desc">Text alignment for lyrics display.</div>
+                  <div className="settings-row-title">Align lyrics</div>
+                  <div className="settings-row-desc">Left, center, or right.</div>
                 </div>
                 <div className="seg">
                   <button
@@ -4382,8 +4368,8 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Animation Style</div>
-                  <div className="settings-row-desc">How the active lyric line animates.</div>
+                  <div className="settings-row-title">Lyric animation</div>
+                  <div className="settings-row-desc">Effect on the current line.</div>
                 </div>
                 <div className="seg">
                   {LYRIC_ANIM_OPTIONS.map((opt) => (
@@ -4399,9 +4385,9 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Font Size</div>
+                  <div className="settings-row-title">Font size</div>
                   <div className="settings-row-desc">
-                    Base font size of lyrics ({lyricFontSize}px).
+                    Size of the lyric text ({lyricFontSize}px).
                   </div>
                 </div>
                 <input
@@ -4416,9 +4402,9 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Active Line Scale</div>
+                  <div className="settings-row-title">Active line size</div>
                   <div className="settings-row-desc">
-                    Enlargement factor ({lyricActiveScale.toFixed(2)}×).
+                    How much larger the current line is ({lyricActiveScale.toFixed(2)}×).
                   </div>
                 </div>
                 <input
@@ -4433,9 +4419,9 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Line Gap Spacing</div>
+                  <div className="settings-row-title">Line spacing</div>
                   <div className="settings-row-desc">
-                    Vertical spacing ({lyricLineGap.toFixed(2)}×).
+                    Space between lines ({lyricLineGap.toFixed(2)}×).
                   </div>
                 </div>
                 <input
@@ -4450,9 +4436,9 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Inactive Line Blur</div>
+                  <div className="settings-row-title">Blur other lines</div>
                   <div className="settings-row-desc">
-                    Blur intensity for past/upcoming lines ({lyricInactiveBlur}px).
+                    Blur on past and upcoming lines ({lyricInactiveBlur}px).
                   </div>
                 </div>
                 <input
@@ -4467,9 +4453,9 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Inactive Line Dimming</div>
+                  <div className="settings-row-title">Dim other lines</div>
                   <div className="settings-row-desc">
-                    Opacity level for inactive lines ({Math.round(lyricDimLevel * 100)}%).
+                    Brightness of past and upcoming lines ({Math.round(lyricDimLevel * 100)}%).
                   </div>
                 </div>
                 <input
@@ -4484,19 +4470,32 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Uppercase Typography</div>
-                  <div className="settings-row-desc">Transform all lyrics text to uppercase.</div>
+                  <div className="settings-row-title">Uppercase lyrics</div>
+                  <div className="settings-row-desc">Show every line in capitals.</div>
                 </div>
                 <button className="switch-label" onClick={() => setLyricUppercase((v) => !v)}>
                   <span className="switch-track" data-active={lyricUppercase}>
                     <span className="switch-knob" />
                   </span>
-                  {lyricUppercase ? 'Uppercase' : 'Normal'}
+                  {lyricUppercase ? 'On' : 'Off'}
+                </button>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-text">
+                  <div className="settings-row-title">Fetch lyrics online</div>
+                  <div className="settings-row-desc">
+                    Look up missing lyrics on LRCLIB automatically.
+                  </div>
+                </div>
+                <button className="switch-label" onClick={() => setAutoFetchLyrics((v) => !v)}>
+                  <span className="switch-track" data-active={autoFetchLyrics}>
+                    <span className="switch-knob" />
+                  </span>
                 </button>
               </div>
               {/* Live preview */}
               <div style={{ marginTop: 16 }}>
-                <label className="lbl-caps">Live Lyrics Preview</label>
+                <label className="lbl-caps">Preview</label>
                 <div
                   className="lyrics-preview-box"
                   style={{
@@ -4554,15 +4553,13 @@ export default function App() {
             </section>
 
             <section id="settings-audio" className="settings-cat">
-            <p className="eyebrow">Equalizer</p>
+            <p className="eyebrow">Audio</p>
             <div className="settings-section">
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">10-Band Graphic Equalizer</div>
+                  <div className="settings-row-title">Equalizer</div>
                   <div className="settings-row-desc">
-                    Current preset:{' '}
-                    {EQ_PRESETS.find((p) => p.id === currentEQPreset)?.name || 'Custom'}. Shortcut:
-                    E
+                    10 bands with presets. Shortcut: E
                   </div>
                 </div>
                 <button className="btn btn-ghost" onClick={() => setIsEqOpen(true)}>
@@ -4574,7 +4571,7 @@ export default function App() {
               <div className="settings-row">
                 <div className="settings-row-text">
                   <div className="settings-row-title">Presets</div>
-                  <div className="settings-row-desc">Quick styles for your music.</div>
+                  <div className="settings-row-desc">One-tap EQ styles.</div>
                 </div>
                 <div
                   style={{
@@ -4603,7 +4600,7 @@ export default function App() {
                 <div className="settings-row-text">
                   <div className="settings-row-title">Preamp</div>
                   <div className="settings-row-desc">
-                    Master gain before the EQ (
+                    Overall EQ volume (
                     {eqPreamp > 0 ? `+${eqPreamp.toFixed(1)}` : eqPreamp.toFixed(1)} dB).
                   </div>
                 </div>
@@ -4622,7 +4619,7 @@ export default function App() {
                 <div className="settings-row-text">
                   <div className="settings-row-title">Balance</div>
                   <div className="settings-row-desc">
-                    Stereo balance (
+                    Left / right output (
                     {balance < 0
                       ? `L ${Math.round(-balance * 100)}%`
                       : balance > 0
@@ -4678,9 +4675,9 @@ export default function App() {
             <div className="settings-section">
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Audio Visualizer Style</div>
+                  <div className="settings-row-title">Audio visualizer</div>
                   <div className="settings-row-desc">
-                    The real-time visualizer shown in the player bar and fullscreen view.
+                    Bars, wave, or radial — shown in the player bar and fullscreen.
                   </div>
                 </div>
                 <div className="seg">
@@ -4713,14 +4710,14 @@ export default function App() {
             </div>
             </section>
 
-            <section id="settings-fullscreen" className="settings-cat">
-            <p className="eyebrow">Fullscreen</p>
+            <section id="settings-nowplaying" className="settings-cat">
+            <p className="eyebrow">Fullscreen View</p>
             <div className="settings-section">
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Fullscreen Type</div>
+                  <div className="settings-row-title">Layout</div>
                   <div className="settings-row-desc">
-                    Full shows the cover, track info and lyrics. Minimalistic shows just the artwork/video.
+                    Full shows lyrics and info; Cover only shows the artwork or video.
                   </div>
                 </div>
                 <div className="seg">
@@ -4728,15 +4725,15 @@ export default function App() {
                     Full
                   </button>
                   <button data-active={fullscreenMode === 'cover'} onClick={() => setFullscreenMode('cover')}>
-                    Minimalistic
+                    Cover only
                   </button>
                 </div>
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Ambient Background</div>
+                  <div className="settings-row-title">Ambience in fullscreen</div>
                   <div className="settings-row-desc">
-                    Use ambience in the fullscreen view.
+                    Show the ambient background on the fullscreen view.
 
                   </div>
                 </div>
@@ -4748,32 +4745,30 @@ export default function App() {
                 </button>
               </div>
             </div>
-            </section>
 
-            <section id="settings-ambience" className="settings-cat">
-            <p className="eyebrow">Fluid Animated Background</p>
+            <p className="eyebrow">Ambient background</p>
             <div className="settings-section">
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Fluid Blurred Cover Ambient</div>
+                  <div className="settings-row-title">Enable ambience</div>
                   <div className="settings-row-desc">
-                    Harmonized fluid aurora backdrop from current album art.
+                    Colors that flow with the album art behind the app.
                   </div>
                 </div>
                 <button className="switch-label" onClick={() => setFluidBgEnabled((v) => !v)}>
                   <span className="switch-track" data-active={fluidBgEnabled}>
                     <span className="switch-knob" />
                   </span>
-                  {fluidBgEnabled ? 'Enabled' : 'Disabled'}
+                  {fluidBgEnabled ? 'On' : 'Off'}
                 </button>
               </div>
               {fluidBgEnabled && (
                 <>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Ambient Mode</div>
+                      <div className="settings-row-title">Style</div>
                       <div className="settings-row-desc">
-                        Backdrop style — aurora, drifting waves, prism or nebula.
+                        Aurora, waves, prism, or nebula.
                       </div>
                     </div>
                     <div className="seg">
@@ -4805,8 +4800,8 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Blur Radius</div>
-                      <div className="settings-row-desc">Softness ({fluidBgBlur}px).</div>
+                      <div className="settings-row-title">Blur</div>
+                      <div className="settings-row-desc">Softness of the background ({fluidBgBlur}px).</div>
                     </div>
                     <input
                       type="range"
@@ -4820,9 +4815,9 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Opacity</div>
+                      <div className="settings-row-title">Intensity</div>
                       <div className="settings-row-desc">
-                        Intensity ({Math.round(fluidBgOpacity * 100)}%).
+                        How strong the colors are ({Math.round(fluidBgOpacity * 100)}%).
                       </div>
                     </div>
                     <input
@@ -4837,8 +4832,8 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Motion Speed</div>
-                      <div className="settings-row-desc">Speed of fluid swirling.</div>
+                      <div className="settings-row-title">Speed</div>
+                      <div className="settings-row-desc">How fast the background moves.</div>
                     </div>
                     <div className="seg">
                       <button
@@ -4863,8 +4858,8 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Color Saturation</div>
-                      <div className="settings-row-desc">Vibrancy ({fluidBgSaturation}%).</div>
+                      <div className="settings-row-title">Saturation</div>
+                      <div className="settings-row-desc">Color vibrancy ({fluidBgSaturation}%).</div>
                     </div>
                     <input
                       type="range"
@@ -4886,24 +4881,23 @@ export default function App() {
             <div className="settings-section">
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Discord Rich Presence</div>
+                  <div className="settings-row-title">Discord</div>
                   <div className="settings-row-desc">
-                    Show what you&apos;re listening to in your Discord profile.
+                    Show the current track on your Discord profile.
                   </div>
                 </div>
                 <button className="switch-label" onClick={() => setDiscordEnabled((v) => !v)}>
                   <span className="switch-track" data-active={discordEnabled}>
                     <span className="switch-knob" />
                   </span>
-                  {discordEnabled ? 'Enabled' : 'Disabled'}
+                  {discordEnabled ? 'On' : 'Off'}
                 </button>
               </div>
               {discordEnabled && (
                 <div className="settings-row">
                   <div className="settings-row-text">
                     <div className="settings-row-desc">
-                      Requires the <strong>Discord app</strong> to be running and a valid
-                      <em> Discord Application ID</em> configured in the source before launch.
+                      Needs the <strong>Discord</strong> desktop app to be running.
                     </div>
                   </div>
                 </div>
@@ -4913,8 +4907,7 @@ export default function App() {
                 <div className="settings-row-text">
                   <div className="settings-row-title">Updates</div>
                   <div className="settings-row-desc">
-                    omus checks for new versions automatically at launch. When one is found the
-                    update downloads, installs and restarts the app on its own.
+                    omus checks for new versions at launch and installs them for you.
                   </div>
                 </div>
                 <button
@@ -4922,21 +4915,20 @@ export default function App() {
                   onClick={() => window.api?.checkForUpdates?.()}
                   style={{ fontSize: 12, padding: '8px 14px' }}
                 >
-                  Check for Updates
+                  Check now
                 </button>
               </div>
             </div>
             </section>
 
             <section id="settings-appearance" className="settings-cat">
-            <p className="eyebrow">Appearance & Customization</p>
+            <p className="eyebrow">Appearance</p>
             <div className="settings-section">
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Global search</div>
+                  <div className="settings-row-title">Search bar</div>
                   <div className="settings-row-desc">
-                    Show the global search bar (tracks, artists, albums, playlists) in the title
-                    bar.
+                    Show the search field in the title bar (Ctrl + K).
                   </div>
                 </div>
                 <button
@@ -4951,7 +4943,7 @@ export default function App() {
             </div>
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 12 }}>
-                Theme Presets
+                Theme
               </label>
               <div className="theme-grid">
                 {PRESET_THEMES.map((theme) => (
@@ -4988,7 +4980,7 @@ export default function App() {
                 }}
               >
                 <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 0 }}>
-                  Animation Presets
+                  Animations
                 </label>
                 <button
                   className="switch-label"
@@ -4997,7 +4989,7 @@ export default function App() {
                   <span className="switch-track" data-active={!animOff}>
                     <span className="switch-knob" />
                   </span>
-                  {animOff ? 'Animations off' : 'On'}
+                  {animOff ? 'Off' : 'On'}
                 </button>
               </div>
               <div className="anim-grid">
@@ -5016,7 +5008,7 @@ export default function App() {
             </div>
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 12 }}>
-                App Font
+                Font
               </label>
               <div className="font-grid">
                 {PRESET_FONTS.map((font) => (
@@ -5038,7 +5030,7 @@ export default function App() {
             </div>
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 4 }}>
-                UI Scale
+                Zoom
               </label>
               <span
                 style={{
@@ -5048,12 +5040,11 @@ export default function App() {
                   marginBottom: 12
                 }}
               >
-                Resize the whole interface. You can also hold <b>Ctrl</b> and use the mouse wheel
-                anywhere for quick zoom.
+                Resize the whole interface. Hold <b>Ctrl</b> and scroll anywhere for quick zoom.
               </span>
               <div className="settings-row" style={{ paddingTop: 0 }}>
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Interface scale</div>
+                  <div className="settings-row-title">Interface zoom</div>
                   <div className="settings-row-desc">70% – 160%</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -5119,7 +5110,7 @@ export default function App() {
               <div className="settings-row">
                 <div className="settings-row-text">
                   <div className="settings-row-title">Shuffle</div>
-                  <div className="settings-row-desc">Play the queue in random order.</div>
+                  <div className="settings-row-desc">Play in random order.</div>
                 </div>
                 <button className="switch-label" onClick={() => setShuffleOn((v) => !v)}>
                   <span className="switch-track" data-active={shuffleOn}>
@@ -5130,7 +5121,7 @@ export default function App() {
               <div className="settings-row">
                 <div className="settings-row-text">
                   <div className="settings-row-title">Repeat</div>
-                  <div className="settings-row-desc">Off, repeat queue, or repeat one track.</div>
+                  <div className="settings-row-desc">Off, all, or one track.</div>
                 </div>
                 <div className="seg">
                   <button data-active={repeatMode === 'off'} onClick={() => setRepeatMode('off')}>
@@ -5148,7 +5139,7 @@ export default function App() {
                 <div className="settings-row-text">
                   <div className="settings-row-title">Resume on launch</div>
                   <div className="settings-row-desc">
-                    Cue your last-played track when you reopen omus.
+                    Reload the last track and position when omus starts.
                   </div>
                 </div>
                 <button className="switch-label" onClick={() => setResumePlayback((v) => !v)}>
@@ -5159,22 +5150,9 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Auto-fetch lyrics</div>
+                  <div className="settings-row-title">Crossfade</div>
                   <div className="settings-row-desc">
-                    Automatically search LRCLIB whenever a track has no lyrics.
-                  </div>
-                </div>
-                <button className="switch-label" onClick={() => setAutoFetchLyrics((v) => !v)}>
-                  <span className="switch-track" data-active={autoFetchLyrics}>
-                    <span className="switch-knob" />
-                  </span>
-                </button>
-              </div>
-              <div className="settings-row">
-                <div className="settings-row-text">
-                  <div className="settings-row-title">Song Transitions</div>
-                  <div className="settings-row-desc">
-                    Fade between tracks when one song ends and the next begins.
+                    Fade the end of a track into the next one.
                   </div>
                 </div>
                 <button
@@ -5189,9 +5167,9 @@ export default function App() {
               {songTransitionEnabled && (
                 <div className="settings-row">
                   <div className="settings-row-text">
-                    <div className="settings-row-title">Transition Duration</div>
+                    <div className="settings-row-title">Crossfade length</div>
                     <div className="settings-row-desc">
-                      Fade length ({songTransitionDuration}s).
+                      Fade duration ({songTransitionDuration}s).
                     </div>
                   </div>
                   <div className="seg">
@@ -5209,9 +5187,9 @@ export default function App() {
               )}
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Playback Speed</div>
+                  <div className="settings-row-title">Speed</div>
                   <div className="settings-row-desc">
-                    Adjust audio playback rate ({playbackRateDisplay}×).
+                    Playback rate ({playbackRateDisplay}×).
                   </div>
                 </div>
                 <div className="seg">
@@ -5238,7 +5216,7 @@ export default function App() {
               <div className="settings-row">
                 <div className="settings-row-text">
                   <div className="settings-row-title">Default view</div>
-                  <div className="settings-row-desc">Layout the library opens in.</div>
+                  <div className="settings-row-desc">How the library opens.</div>
                 </div>
                 <div className="seg">
                   <button
@@ -5263,8 +5241,8 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Row density</div>
-                  <div className="settings-row-desc">Compact fits more tracks on screen.</div>
+                  <div className="settings-row-title">Density</div>
+                  <div className="settings-row-desc">Compact rows fit more on screen.</div>
                 </div>
                 <div className="seg">
                   <button
@@ -5283,7 +5261,7 @@ export default function App() {
               </div>
               <div className="settings-row">
                 <div className="settings-row-text">
-                  <div className="settings-row-title">Confirm before deleting</div>
+                  <div className="settings-row-title">Confirm deletions</div>
                   <div className="settings-row-desc">Ask before removing tracks or playlists.</div>
                 </div>
                 <button className="switch-label" onClick={() => setConfirmBeforeDelete((v) => !v)}>
@@ -5296,29 +5274,29 @@ export default function App() {
             </section>
 
             <section id="settings-shortcuts" className="settings-cat">
-            <p className="eyebrow">Keyboard Shortcuts</p>
+            <p className="eyebrow">Shortcuts</p>
             <div className="settings-section">
               <div
                 style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12 }}
               >
                                 {[
-                  ['Space', 'Play / Pause'],
+                  ['Space', 'Play / pause'],
                   ['L', 'Lyrics'],
-                  ['← / →', 'Seek ±5 Seconds'],
-                  ['Shift + ← / →', 'Prev / Next Track'],
+                  ['← / →', 'Seek ±5s'],
+                  ['Shift + ← / →', 'Previous / next'],
                   ['Q', 'Queue'],
                   ['M', 'Mute'],
                   ['F', 'Fullscreen'],
                   ['E', 'Equalizer'],
                   ['S', 'Settings'],
-                  ['Esc', 'Close Overlays'],
-                  ['Ctrl + Scroll', 'Zoom UI'],
-                  ['Ctrl + K', 'Global Search']
+                  ['Esc', 'Close overlay'],
+                  ['Ctrl + Scroll', 'Zoom'],
+                  ['Ctrl + K', 'Search']
                 ].map(([key, label]) => (
                   <div key={key}>
                     <kbd
                       style={{
-                        background: 'var(--card-bg)',
+                        background: 'color-mix(in srgb, var(--card-bg) 87%, transparent)',
                         padding: '2px 7px',
                         borderRadius: 4,
                         border: '1px solid rgba(128,128,128,0.3)',
@@ -5337,7 +5315,7 @@ export default function App() {
             <section id="settings-advanced" className="settings-cat">
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 4 }}>
-                Custom CSS Overrides
+                Custom CSS
               </label>
               <span
                 style={{
@@ -5347,8 +5325,7 @@ export default function App() {
                   marginBottom: 12
                 }}
               >
-                Inject custom styles to alter UI components live. Only if you know what you are
-                doing.
+                For advanced users — add your own CSS to restyle anything.
               </span>
               <textarea
                 className="field"
@@ -5362,7 +5339,7 @@ export default function App() {
               />
             </div>
 
-            <div className="settings-section" style={{ border: 'none' }}>
+            <div className="settings-section">
               <button
                 className="btn btn-ghost"
                 onClick={handleResetSettings}
@@ -5626,7 +5603,7 @@ export default function App() {
           <button
             className="sp-btn-icon"
             onClick={toggleFullscreen}
-            title="Fullscreen Now Playing (F)"
+            title="Fullscreen View (F)"
           >
             <Maximize2 size={17} />
           </button>
@@ -5641,7 +5618,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* FULLSCREEN NOW PLAYING */}
+      {/* FULLSCREEN VIEW */}
       {isFullscreenCover && currentTrack && (
         <div
           className={`fullscreen-visualizer${fsUiVisible ? ' fs-ui-visible' : ''}${fullscreenMode === 'cover' ? ' fs-cover-only' : ''}${fullscreenAmbience && fluidBgEnabled ? ' fs-ambience' : ''}`}
@@ -6298,9 +6275,12 @@ export default function App() {
               bottom: 24,
               right: 24,
               zIndex: 9998,
-              background: 'var(--card-bg)',
-              border: '1px solid rgba(128, 128, 128, 0.25)',
-              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.55)',
+              background: 'color-mix(in srgb, var(--card-bg) 87%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--text-primary) 14%, transparent)',
+              boxShadow:
+                '0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.06)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
               borderRadius: 12,
               padding: '12px 16px',
               display: 'flex',
@@ -6308,7 +6288,6 @@ export default function App() {
               gap: 12,
               minWidth: 280,
               maxWidth: 380,
-              backdropFilter: 'blur(20px)',
               color: 'var(--text-primary)',
               pointerEvents: 'none'
             }}

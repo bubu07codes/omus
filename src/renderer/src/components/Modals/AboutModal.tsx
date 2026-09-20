@@ -27,9 +27,9 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
           align-items: center;
           justify-content: center;
           padding: 24px;
-          background: rgba(0, 0, 0, 0.7);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(14px) saturate(120%);
+          -webkit-backdrop-filter: blur(14px) saturate(120%);
           animation: aboutFadeIn 0.2s ease;
         }
         @keyframes aboutFadeIn {
@@ -45,9 +45,11 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
           overflow-y: auto;
           border-radius: 20px;
           padding: 32px;
-          background: var(--card-bg, #18181b);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+          background: color-mix(in srgb, var(--card-bg, #18181b) 87%, transparent);
+          border: 1px solid color-mix(in srgb, var(--text-primary, #fff) 14%, transparent);
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+          backdrop-filter: blur(24px) saturate(1.3);
+          -webkit-backdrop-filter: blur(24px) saturate(1.3);
           text-align: center;
           animation: aboutCardIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
