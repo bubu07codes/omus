@@ -907,7 +907,9 @@ export const GLOBAL_CSS = `
      actually glides (GPU transform) so line changes are buttery smooth and the
      first/last lines always stay fully visible (dynamic padding keeps them out
      of the fade mask). */
-  .lyrics-scroll { flex: 1; overflow: hidden; overflow-x: hidden; padding: 0 20px; position: relative; mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); }
+  .lyrics-scroll { flex: 1; overflow: hidden; overflow-x: hidden; padding: 0 28px; position: relative; mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); }
+  /* The 28px side padding is the slide budget: the 'slide' animation moves
+     past/upcoming lines by ±14–18px, which must stay inside the viewport. */
   .lyrics-track { position: relative; will-change: transform; transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1); }
   /* Lyrics animation modes */
   /* Compositor-friendly only (transform/opacity) + cheap text-shadow/color.
@@ -917,6 +919,13 @@ export const GLOBAL_CSS = `
     font-weight: 800; line-height: 1.25; cursor: pointer;
     transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
     overflow-wrap: anywhere;
+    /* Scale-aware width budget: each line wraps at 100%/scale, so when the
+       active line is transformed by scale(s) it visually spans EXACTLY 100%
+       of the text column — it can never bleed past the viewport edge, at any
+       font size or scale. Inactive lines render at 0.96 inside the same
+       narrower column, so nothing reflows when a line becomes active. The
+       viewports set --lyric-active-scale (settings: Active line size). */
+    max-width: calc(100% / var(--lyric-active-scale, 1));
   }
   /* GPU-promote only the active line (keeps memory low while one layer exists). */
   .lyric-line[data-active="true"],
@@ -999,7 +1008,7 @@ export const GLOBAL_CSS = `
     to { opacity: 1; transform: scale(1) rotate(0deg); }
   }
   .now-playing-enter { animation: nowPlayingEnter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .fullscreen-lyrics-scroll { height: 100%; min-width: 0; min-height: 0; max-height: 100%; align-self: stretch; justify-self: stretch; overflow: hidden; overflow-x: hidden; padding: 0 24px 0 0; scrollbar-gutter: stable; overscroll-behavior: contain; mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); }
+  .fullscreen-lyrics-scroll { height: 100%; min-width: 0; min-height: 0; max-height: 100%; align-self: stretch; justify-self: stretch; overflow: hidden; overflow-x: hidden; padding: 0 28px; scrollbar-gutter: stable; overscroll-behavior: contain; mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 7%, black 93%, transparent 100%); }
   .fullscreen-lyrics-empty { color: var(--text-secondary); opacity: 0.85; font-size: 17px; line-height: 1.5; max-width: 420px; min-height: 240px; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; margin: 0 auto; }
   .fullscreen-controls-bar { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid rgba(128,128,128,0.14); gap: 20px; }
   .lyrics-preview-box { background: var(--glass-bg); border: 1px solid var(--glass-edge); border-radius: 14px; padding: 24px; margin-top: 16px; overflow: hidden; position: relative; box-shadow: inset 0 1px 0 var(--glass-sheen); }

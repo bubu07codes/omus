@@ -4233,7 +4233,12 @@ export default function App() {
             <div
               ref={lyricsContainerRef}
               className="lyrics-scroll"
-              style={{ textAlign: lyricAlignment }}
+              style={
+                {
+                  textAlign: lyricAlignment,
+                  '--lyric-active-scale': lyricActiveScale
+                } as React.CSSProperties
+              }
             >
               {parsedLyrics.length > 0 ? (
                 <div ref={lyricsTrackRef} className="lyrics-track">
@@ -4541,7 +4546,11 @@ export default function App() {
                             : lyricAlignment === 'right'
                               ? 'right center'
                               : 'center',
-                        fontWeight: l.weight
+                        fontWeight: l.weight,
+                        overflowWrap: 'anywhere',
+                        // Same scale-aware width budget as the real lyric views:
+                        // the scaled preview line can never clip the card.
+                        maxWidth: `${100 / lyricActiveScale}%`
                       }}
                     >
                       {l.text}
@@ -5735,7 +5744,12 @@ export default function App() {
               <div
                 ref={fullscreenLyricsRef}
                 className="fullscreen-lyrics-scroll"
-                style={{ textAlign: lyricAlignment }}
+                style={
+                  {
+                    textAlign: lyricAlignment,
+                    '--lyric-active-scale': lyricActiveScale
+                  } as React.CSSProperties
+                }
               >
                 <div ref={fullscreenLyricsTrackRef} className="lyrics-track">
                 {parsedLyrics.map((line, i) => (
