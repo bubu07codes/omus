@@ -40,6 +40,9 @@ npm run build        # typecheck + electron-vite build → ./out
 npm run typecheck    # tsc --noEmit for node (main+preload) then web (renderer)  ← source of truth for types
 npm run lint         # eslint --cache .
 npm run format       # prettier --write .
+npm run test         # vitest unit tests + playwright e2e (e2e builds first)
+npm run test:unit    # vitest run — tests/unit/*.test.ts
+npm run test:e2e     # build + playwright — tests/e2e/app.spec.ts
 npm run build:win    # build + electron-builder --win (NSIS installer)
 npm install          # runs postinstall → electron-builder install-app-deps (rebuilds native better-sqlite3)
 ```
@@ -92,7 +95,10 @@ omus/
 │
 ├── src/
 │   ├── main/                         === MAIN PROCESS (backend) ===
-│   │   ├── index.ts        ~790 lines — everything (see §6)
+│   │   ├── index.ts        IPC + protocol + window mgmt (see §6)
+│   │   ├── db.ts           SQLite schema init + migrations (unit-tested)
+│   │   ├── logger.ts       file logger (initLogger(userData))
+│   │   ├── ocfg.ts         .ocfg settings-config codec (magic + gzip, see §7)
 │   │   ├── discordRPC.ts   Discord Rich Presence client (see §7)
 │   │   └── updater.ts      GitHub release check + dialogs (see §7)
 │   ├── preload/                      === BRIDGE ===
@@ -132,6 +138,7 @@ omus/
 ├── build/                    electron-builder resources: icon.ico, icon.png, entitlements.mac.plist
 ├── docs/index.html           marketing website (GH Pages) — NOT the app
 ├── github-assets/            images/gifs used by README & docs site
+├── tests/                    unit tests (vitest: tests/unit) + e2e (playwright: tests/e2e)
 ├── node_modules/ · out/ · dist/    deps + build outputs (all gitignored)
 ```
 
@@ -226,6 +233,8 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
 | `playlists:import-m3u` | handle | parses `.m3u/.m3u8`, resolves relative paths, auto-imports + saves missing tracks, creates playlist |
 | `settings:get` / `settings:set` | handle | read/write `settings.json` |
 | `settings:set-sync` | on | **synchronous** `writeFileSync` — final flush during window close |
+| `settings:export-config` | handle | save dialog → writes `<name>.ocfg` (magic header + gzip of settings.json); returns `true`/`'canceled'`/`false` |
+| `settings:import-config` | handle | open dialog → decode `.ocfg` → overwrite `settings.json`; returns settings object / `null` (canceled) / `'invalid'` |
 | `updates:check` | on | manual `checkForUpdates(win, manual=true)` |
 | `discord:update` / `discord:clear` | on | rich presence |
 | `window:minimize` / `window:close` | on | BrowserWindow controls |
@@ -256,6 +265,15 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
   the renderer shows a bottom-right progress overlay while downloading.
 - Publishing must upload the `latest.yml` metadata + `.exe`/`.blockmap`: `npm run publish:win`
   (requires a `GH_TOKEN` env var), or use the GitHub `--publish` flag from CI.
+
+### `src/main/ocfg.ts`
+- The `.ocfg` omus-config container (Settings → Advanced → "Configuration file", at the very
+  bottom): `[ "OMUSCFG1" magic ][ gzip( settings.json payload ) ]` — one tiny, self-identifying,
+  shareable file holding every persisted setting (media/playlists intentionally stay in the DB).
+- Exports `encodeOcfg()` / `decodeOcfg()`; decode also accepts headerless gzip and plain JSON,
+  arrays/garbage → `null`. Dependency-free (zlib only) and unit-tested (`tests/unit/ocfg.test.ts`).
+- Import overwrites `settings.json`; the renderer then sets `hydratedRef.current = false` (so the
+  pagehide flush + autosave can't clobber the imported file) and reloads so `init()` rehydrates.
 
 ## 8. Preload bridge — `src/preload/index.ts` (+ index.d.ts)
 
@@ -331,7 +349,8 @@ lyricsOptionsOpen…), upload flow (pendingUploads, editingIndex), playlist edit
 `lyrics` · `audio` (Sound & Vision: EQ, visualizer, crossfade, sleep…) · `fullscreen` ·
 `ambience` (fluid background) · `integrations` (Discord + updater) · `appearance` (theme/font/
 animation/UI scale/custom CSS) · `playback` (resume, shuffle, media keys…) · `library`
-(layout, density, confirm-delete) · `shortcuts` (reference) · `advanced` (reset settings, system info).
+(layout, density, confirm-delete) · `shortcuts` (reference) · `advanced` (custom CSS, reset,
+system info, and .ocfg settings export/import at the very bottom).
 
 ## 10. Hooks
 
@@ -451,8 +470,9 @@ settings.json (not a separate table).
     App ~4×/sec — keep row props referentially stable.
 13. **Tailwind is barely used** — most styling is `GLOBAL_CSS` + inline styles. Tailwind config
     defines the `omus` palette (green #1DB954 etc.).
-14. **No test framework** is set up. Validation = `npm run typecheck` + `npm run lint` +
-    `npm run build` + manual `npm run dev`.
+14. **Tests:** vitest unit (`npm run test:unit`, `tests/unit/*.test.ts`) + Playwright e2e
+    (`npm run test:e2e`, `tests/e2e/app.spec.ts`). Validation = `npm run typecheck` + unit tests +
+    `npm run lint` + `npm run build` + manual `npm run dev`.
 15. **Discord & updater are best-effort** — every failure is caught silently; the app must never
     crash because Discord/GitHub are unreachable.
 16. **`onWindowMaximizeChange` returns an unsubscribe fn** and `setZoomFactor/getZoomFactor` are

@@ -593,6 +593,14 @@ export default function App() {
     const unsubscribe = window.api.onUpdateStatus((status) => setUpdateStatus(status))
     return unsubscribe
   }, [])
+
+  // ---- App version (shown at the bottom of Settings → Advanced) ----
+  const [appVersion, setAppVersion] = useState('')
+  useEffect(() => {
+    window.api?.getAppVersion?.().then(setAppVersion).catch(() => {
+      /* empty */
+    })
+  }, [])
   // Deferred search + transitioned view switches: heavy UI updates happen in a
   // lower-priority transition instead of blocking paint inside the click handler.
   const [, startTransition] = useTransition()
@@ -2241,6 +2249,40 @@ export default function App() {
     setGlobalSearchEnabled(true)
     setUiScale(1)
     addToast('Settings reset to defaults', undefined, 'info')
+  }
+
+  // ---- Settings config export/import (.ocfg) ----
+  const handleExportConfig = () => {
+    if (!window.api?.exportSettingsConfig) return
+    void (async () => {
+      // Flush the live in-memory settings first so the exported file matches
+      // exactly what the UI shows right now (autosave is debounced).
+      if (window.api?.saveSettings) await window.api.saveSettings(buildSettingsRef.current())
+      const result = await window.api.exportSettingsConfig()
+      if (result === true) {
+        addToast('Settings exported', 'Share the .ocfg file — anyone can import it', 'success')
+      } else if (result === false) {
+        addToast('Could not export settings', undefined, 'error')
+      }
+    })()
+  }
+
+  const handleImportConfig = () => {
+    if (!window.api?.importSettingsConfig) return
+    void (async () => {
+      const result = await window.api.importSettingsConfig()
+      if (result === 'invalid') {
+        addToast('Not a valid .ocfg file', 'Pick a config file exported by omus', 'error')
+        return
+      }
+      if (!result) return // dialog dismissed — nothing to do
+      // Freeze this window's settings writers (pagehide flush + autosave) so
+      // the old in-memory state cannot overwrite the freshly imported file,
+      // then reload: init() rehydrates every knob from the new settings.json.
+      hydratedRef.current = false
+      addToast('Settings imported', 'Reloading omus…', 'success')
+      setTimeout(() => window.location.reload(), 900)
+    })()
   }
 
   // ---- Settings sidebar navigation (categories) ----
@@ -4726,7 +4768,7 @@ export default function App() {
                 <div className="settings-row-text">
                   <div className="settings-row-title">Layout</div>
                   <div className="settings-row-desc">
-                    Full shows lyrics and info; Cover only shows the artwork or video.
+                    Full shows lyrics, and info, while cover only shows just the artwork or video.
                   </div>
                 </div>
                 <div className="seg">
@@ -4743,7 +4785,6 @@ export default function App() {
                   <div className="settings-row-title">Ambience in fullscreen</div>
                   <div className="settings-row-desc">
                     Show the ambient background on the fullscreen view.
-
                   </div>
                 </div>
                 <button className="switch-label" onClick={() => setFullscreenAmbience((v) => !v)}>
@@ -4761,7 +4802,7 @@ export default function App() {
                 <div className="settings-row-text">
                   <div className="settings-row-title">Enable ambience</div>
                   <div className="settings-row-desc">
-                    Colors that flow with the album art behind the app.
+                    Beautiful background from the current playing cover.
                   </div>
                 </div>
                 <button className="switch-label" onClick={() => setFluidBgEnabled((v) => !v)}>
@@ -4777,7 +4818,7 @@ export default function App() {
                     <div className="settings-row-text">
                       <div className="settings-row-title">Style</div>
                       <div className="settings-row-desc">
-                        Aurora, waves, prism, or nebula.
+                        Change the ambience style.
                       </div>
                     </div>
                     <div className="seg">
@@ -5321,7 +5362,40 @@ export default function App() {
             </div>
             </section>
 
+            
+
             <section id="settings-advanced" className="settings-cat">
+              <div className="settings-section">
+              <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 4 }}>
+                Configuration file (.ocfg)
+              </label>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--text-secondary)',
+                  display: 'block',
+                  marginBottom: 12
+                }}
+              >
+                Pack every setting in omus into one tiny .ocfg file. You can import any .ocfg file, use it as a backup, or send it to anyone.
+              </span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-ghost"
+                  onClick={handleExportConfig}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
+                  <Download size={14} /> Export settings
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={handleImportConfig}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
+                  <Upload size={14} /> Import settings
+                </button>
+              </div>
+            </div>
             <div className="settings-section">
               <label className="lbl-caps" style={{ fontSize: 12, marginBottom: 4 }}>
                 Custom CSS
@@ -5338,7 +5412,7 @@ export default function App() {
               </span>
               <textarea
                 className="field"
-                style={{ height: 160, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
+                style={{ height: 60, fontFamily: 'ui-monospace, monospace', fontSize: 12 }}
                 value={customCssInput}
                 onChange={(e) => {
                   setCustomCssInput(e.target.value)
@@ -5356,6 +5430,16 @@ export default function App() {
               >
                 <RotateCcw size={14} /> Reset to defaults
               </button>
+              <span
+                style={{
+                  display: 'block',
+                  marginTop: 14,
+                  fontSize: 11,
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                {appVersion ? `omus v${appVersion}` : ''}
+              </span>
             </div>
             </section>
           </div>

@@ -14,6 +14,7 @@ import {
 import { checkForUpdates } from './updater'
 import { initDatabaseSchema } from './db'
 import { initLogger, logError, logInfo } from './logger'
+import { encodeOcfg, decodeOcfg } from './ocfg'
 
 app.name = 'omus'
 
@@ -757,6 +758,9 @@ ipcMain.handle('app:open-external', async (_, url: string) => {
   }
 })
 
+// App version for the settings footer (the renderer must never import 'electron').
+ipcMain.handle('app:get-version', () => app.getVersion())
+
 ipcMain.handle('playlists:get', () => {
   return db.prepare('SELECT * FROM playlists ORDER BY created_at DESC').all()
 })
@@ -994,6 +998,51 @@ ipcMain.on('settings:set-sync', (_event, settings: unknown) => {
     /* non-fatal */
   }
 })
+
+// ---- Settings config export/import (.ocfg) ---------------------------------
+// A .ocfg file is the compressed settings.json: every persisted knob (theme,
+// EQ, lyrics styling, play counts, …) packed into one tiny shareable file.
+// Library media and playlists intentionally stay out — they live in the DB.
+ipcMain.handle('settings:export-config', async (event) => {
+  try {
+    const raw = await fs.readFile(SETTINGS_PATH, 'utf-8')
+    const settings = JSON.parse(raw) as unknown
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return false
+    const { canceled, filePath } = await showSaveDialog(event, {
+      title: 'Export omus Settings',
+      defaultPath: 'omus-settings.ocfg',
+      filters: [{ name: 'omus Config', extensions: ['ocfg'] }]
+    })
+    if (canceled || !filePath) return 'canceled'
+    await fs.writeFile(filePath, encodeOcfg(settings as Record<string, unknown>))
+    logInfo(`Settings exported to ${filePath}`)
+    return true
+  } catch (err) {
+    logError('settings:export-config failed', err)
+    return false
+  }
+})
+
+ipcMain.handle('settings:import-config', async (event) => {
+  try {
+    const { canceled, filePaths } = await showOpenDialog(event, {
+      title: 'Import omus Settings',
+      properties: ['openFile'],
+      filters: [{ name: 'omus Config', extensions: ['ocfg'] }]
+    })
+    if (canceled || filePaths.length === 0) return null
+    const buf = await fs.readFile(filePaths[0])
+    const settings = decodeOcfg(buf)
+    if (!settings) return 'invalid'
+    await fs.writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8')
+    logInfo(`Settings imported from ${filePaths[0]}`)
+    return settings
+  } catch (err) {
+    logError('settings:import-config failed', err)
+    return 'invalid'
+  }
+})
+
 
 ipcMain.on('updates:check', () => {
   void checkForUpdates(mainWindow, true)

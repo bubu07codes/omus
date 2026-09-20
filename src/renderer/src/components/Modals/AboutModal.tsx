@@ -1,4 +1,5 @@
 import { X, Star, Music, Zap, Globe, Sparkles, Text } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface AboutModalProps {
   isOpen: boolean
@@ -15,6 +16,13 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
     if (openExternal) openExternal(url)
     else window.open(url, '_blank')
   }
+
+  const [appVersion, setAppVersion] = useState('')
+  useEffect(() => {
+    window.api?.getAppVersion?.().then(setAppVersion).catch(() => {
+      /* empty */
+    })
+  }, [])
 
   return (
     <div className="about-overlay" onClick={onClose}>
@@ -182,6 +190,17 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
           <span>Powered by Electron, React, and TypeScript</span>
           <span>Open Source Software</span>
         </div>
+
+        <span
+                style={{
+                  display: 'block',
+                  marginTop: 14,
+                  fontSize: 12,
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                {appVersion ? `omus v${appVersion}` : ''}
+        </span>
       </div>
     </div>
   )

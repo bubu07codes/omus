@@ -22,6 +22,7 @@ export interface CustomAPI {
   }) => Promise<boolean>
   revealInExplorer: (filepath: string) => Promise<boolean>
   openExternal: (url: string) => Promise<boolean>
+  getAppVersion: () => Promise<string>
   getPlaylists: () => Promise<Playlist[]>
   createPlaylist: (name: string) => Promise<Playlist>
   deletePlaylist: (playlistId: string) => Promise<boolean>
@@ -37,6 +38,13 @@ export interface CustomAPI {
   saveSettings: (settings: unknown) => Promise<boolean>
   // Best-effort synchronous flush used right before the window closes.
   flushSettings: (settings: unknown) => void
+  // Settings config export/import (.ocfg) — a compressed settings.json.
+  // Export: true = file written, 'canceled' = dialog dismissed, false = error.
+  exportSettingsConfig: () => Promise<boolean | 'canceled'>
+  // Import: returns the imported settings object (already written to
+  // settings.json), null when the dialog was dismissed, or 'invalid' for an
+  // unreadable / non-omus file.
+  importSettingsConfig: () => Promise<Record<string, unknown> | null | 'invalid'>
   // GitHub release checker ("Check for updates").
   checkForUpdates: () => void
   // Live auto-update progress pushed from the main process (download % etc.),

@@ -973,16 +973,23 @@ export const GLOBAL_CSS = `
   .fullscreen-cover-side { display: flex; flex-direction: column; align-items: center; justify-content: center; justify-content: safe center; height: 100%; max-height: 72vh; }
   /* The cover stays a rigid 1:1 square (flex-shrink: 0 — flex boxes would
      otherwise shrink only the height and squash the art). In Full (not
-     Minimalistic) mode on a small window there simply isn't room for the artwork
-     column, so the cover is hidden entirely and only the track info + lyrics
+     Minimalistic) mode the artwork column only exists in the wide side-by-side
+     layout — the moment the layout stacks (<=880px) or the window is short
+     (<=700px) the cover is hidden entirely and only the track info + lyrics
      remain — see the media query below. "safe center" is a fallback: in any
      overflowing edge case the column top-aligns so the cover is never cut off. */
   .fullscreen-cover-wrap { width: 100%; max-width: 520px; flex-shrink: 0; aspect-ratio: 1/1; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 70px rgba(0,0,0,0.6); background: var(--card-bg); border: 1px solid rgba(128,128,128,0.2); margin-bottom: 24px; position: relative; transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
   .fullscreen-cover-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  /* Small window: Full mode hides the album art (no room next to the lyrics).
-     Minimalistic mode is untouched — there the cover IS the view. */
+  /* Stacked / short window: below this point the side-by-side layout has no
+     room, so it stacks into a single column AND the album art is hidden — only
+     track info + lyrics remain. Minimalistic (Cover only) mode is untouched —
+     there the cover IS the view. Must match the stacking breakpoint here (the
+     @media (max-width: 880px) block below), so the cover never appears in the
+     stacked layout. */
   @media (max-height: 700px), (max-width: 880px) {
+    .fullscreen-body { grid-template-columns: 1fr; gap: 24px; }
     .fullscreen-visualizer:not(.fs-cover-only) .fullscreen-cover-wrap { display: none; }
+    .fullscreen-video-wrap { max-width: 320px; margin-bottom: 12px; }
   }
   /* Music-video frame in fullscreen. The <video> is a muted, picture-only
      mirror of the audio engine, so it threads volume/EQ/visualizer through the
@@ -1115,6 +1122,23 @@ export const GLOBAL_CSS = `
     border-color: color-mix(in srgb, var(--accent) 22%, rgba(128,128,128,0.24));
     transform: none;
   }
+  /* Wide screens: when there's room, place the hero spotlight beside the
+     Library Pulse + Liked Songs tiles instead of pushing them to a new row. */
+  @media (min-width: 1200px) {
+    .home-grid:has(.tile-hero) .tile-hero {
+      grid-column: 1 / 5;
+      grid-row: 1 / 3;
+    }
+    .home-grid:has(.tile-hero) .tile-stats {
+      grid-column: 5 / 7;
+      grid-row: 1;
+    }
+    .home-grid:has(.tile-hero) .tile-quick-mix {
+      grid-column: 5 / 7;
+      grid-row: 2;
+    }
+  }
+
   .tile-stats, .tile-quick-mix { grid-column: span 3; }
   .tile-recent, .tile-new, .tile-most, .tile-albums,
   .tile-artists, .tile-pl { grid-column: span 3; }
@@ -1741,9 +1765,12 @@ export const GLOBAL_CSS = `
     .sp-title { font-size: 13px; }
     .sp-btn-lyrics .lbl { display: none; }
     .content { padding: 20px 16px 132px; }
-    .fullscreen-body { grid-template-columns: 1fr; gap: 24px; }
-    .fullscreen-cover-wrap { max-width: 240px; margin-bottom: 12px; }
-    .fullscreen-video-wrap { max-width: 320px; margin-bottom: 12px; }
+    .fullscreen-body { gap: 24px; }
+    /* Still the side-by-side cover + lyrics layout — just tighter: a smaller
+       art square keeps both columns readable down to the 880px stacking point
+       (below that the cover drops entirely — see the Fullscreen section). */
+    .fullscreen-cover-wrap { max-width: 360px; }
+    .fullscreen-video-wrap { max-width: 420px; }
   }
 
   @media (max-width: 680px) {

@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('api', {
   revealInExplorer: (filepath: string) =>
     ipcRenderer.invoke('library:reveal-in-explorer', filepath),
   openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url),
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
   getPlaylists: () => ipcRenderer.invoke('playlists:get'),
   createPlaylist: (name: string) => ipcRenderer.invoke('playlists:create', name),
   deletePlaylist: (playlistId: string) => ipcRenderer.invoke('playlists:delete', playlistId),
@@ -52,6 +53,9 @@ contextBridge.exposeInMainWorld('api', {
   saveSettings: (settings: unknown) => ipcRenderer.invoke('settings:set', settings),
   // Best-effort synchronous flush used right before the window closes.
   flushSettings: (settings: unknown) => ipcRenderer.send('settings:set-sync', settings),
+  // Settings config export/import (.ocfg) — see src/main/ocfg.ts
+  exportSettingsConfig: () => ipcRenderer.invoke('settings:export-config'),
+  importSettingsConfig: () => ipcRenderer.invoke('settings:import-config'),
   // GitHub release checker ("Check for updates").
   checkForUpdates: () => ipcRenderer.send('updates:check'),
   // Live auto-update progress pushed back while a new version is downloaded
