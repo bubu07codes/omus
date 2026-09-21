@@ -61,7 +61,7 @@ Contributions, feature requests, and bug reports are very welcome!
    git clone https://github.com/bubu07codes/omus.git
    cd omus
 
-```
+
 
 3. **Install dependencies**:
 ```bash
