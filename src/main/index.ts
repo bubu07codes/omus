@@ -168,7 +168,10 @@ function createWindow(): void {
   })
 
   win.webContents.on('render-process-gone', (_event, details) => {
-    logError(`Renderer gone: reason=${details.reason} exitCode=${details.exitCode}`, new Error(details.reason))
+    logError(
+      `Renderer gone: reason=${details.reason} exitCode=${details.exitCode}`,
+      new Error(details.reason)
+    )
     if (details.reason === 'clean-exit') return
     if (rendererReloads >= 3) return
     rendererReloads++
@@ -184,15 +187,21 @@ function createWindow(): void {
   })
   // Main-frame load failures (bad disk state, AV locks on first paint, …) get
   // the same bounded retry so the window never sticks on a blank frame.
-  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    if (!isMainFrame || errorCode === -3 /* ABORTED: intentional nav */) return
-    if (rendererReloads >= 3) return
-    rendererReloads++
-    logError(`Main frame load failed (${errorCode} ${errorDescription}) for ${validatedURL}`, new Error(errorDescription))
-    setTimeout(() => {
-      if (!win.isDestroyed()) win.webContents.reload()
-    }, 400)
-  })
+  win.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame || errorCode === -3 /* ABORTED: intentional nav */) return
+      if (rendererReloads >= 3) return
+      rendererReloads++
+      logError(
+        `Main frame load failed (${errorCode} ${errorDescription}) for ${validatedURL}`,
+        new Error(errorDescription)
+      )
+      setTimeout(() => {
+        if (!win.isDestroyed()) win.webContents.reload()
+      }, 400)
+    }
+  )
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -426,9 +435,7 @@ async function migrateLegacyCoversToDisk(): Promise<void> {
     const cols = db.prepare(`PRAGMA table_info(tracks)`).all() as { name: string }[]
     if (!cols.some((c) => c.name === 'cover_path')) return
 
-    const rows = db.prepare(
-      `SELECT id, cover FROM tracks WHERE cover != '' AND cover_path IS NULL`
-    )
+    const rows = db.prepare(`SELECT id, cover FROM tracks WHERE cover != '' AND cover_path IS NULL`)
     const update = db.prepare(`UPDATE tracks SET cover = '', cover_path = ? WHERE id = ?`)
 
     let migrated = 0
@@ -508,10 +515,7 @@ async function showSaveDialog(
 }
 
 ipcMain.handle('library:get', () => {
-  return db
-    .prepare('SELECT * FROM tracks ORDER BY added_at DESC')
-    .all()
-    .map(toTrackView)
+  return db.prepare('SELECT * FROM tracks ORDER BY added_at DESC').all().map(toTrackView)
 })
 
 ipcMain.handle('library:parse-uploads', async (event) => {
@@ -657,9 +661,8 @@ ipcMain.handle('library:save-tracks', async (_, tracks: ParsedTrack[]) => {
 
 ipcMain.handle('library:delete-track', async (_, trackId: string) => {
   try {
-    const existing = db
-      .prepare('SELECT cover_path FROM tracks WHERE id = ?')
-      .get(trackId) as { cover_path?: string | null } | undefined
+    const existing = db.prepare('SELECT cover_path FROM tracks WHERE id = ?').get(trackId) as
+      { cover_path?: string | null } | undefined
     db.prepare('DELETE FROM playlist_tracks WHERE track_id = ?').run(trackId)
     db.prepare('DELETE FROM tracks WHERE id = ?').run(trackId)
     if (existing?.cover_path) {
@@ -882,8 +885,7 @@ ipcMain.handle('playlists:covers', () => {
 ipcMain.handle('playlists:export', async (event, playlistId: string) => {
   try {
     const pl = db.prepare('SELECT * FROM playlists WHERE id = ?').get(playlistId) as
-      | { name: string }
-      | undefined
+      { name: string } | undefined
     if (!pl) return false
     const rows = db
       .prepare(
@@ -951,8 +953,7 @@ ipcMain.handle('playlists:import-m3u', async (event) => {
 
     for (const p of audioPaths) {
       let track = db.prepare('SELECT id FROM tracks WHERE filepath = ?').get(p) as
-        | { id: string }
-        | undefined
+        { id: string } | undefined
       if (!track) {
         const parsed = await parseAudioFile(p)
         if (parsed) {
@@ -1042,7 +1043,6 @@ ipcMain.handle('settings:import-config', async (event) => {
     return 'invalid'
   }
 })
-
 
 ipcMain.on('updates:check', () => {
   void checkForUpdates(mainWindow, true)

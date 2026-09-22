@@ -20,16 +20,16 @@ mini player mode (dock the window into an always-on-top corner widget with hover
 
 ## 2. Stack (key versions)
 
-| Layer | Tech |
-|---|---|
-| Framework | Electron `39.2.6` (Node 22.x toolchain), electron-vite `5.0.0`, electron-builder `26.15.3` |
-| Language | TypeScript `5.9.3` (two tsconfigs: node + web) |
-| UI | React `19.2.1` (uses `memo`, `useTransition`, `useDeferredValue`), lucide-react icons |
-| Styling | Tailwind CSS `4.3.3` (partial), most UI is custom CSS (`constants/globalCss.ts`) |
-| Data | better-sqlite3 `13.0.3` (sync, native module), JSON settings file |
-| Media | music-metadata `7.14.0` (tag/cover parsing), HTML5 `<audio>`/`<video>` + Web Audio API |
-| Integration | discord-rpc `4.0.1`, chokidar, clsx/tailwind-merge (class utils) |
-| Tooling | ESLint 9 + prettier 3.7, @electron/rebuild, vite 7.2.6, @vitejs/plugin-react |
+| Layer       | Tech                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| Framework   | Electron `39.2.6` (Node 22.x toolchain), electron-vite `5.0.0`, electron-builder `26.15.3` |
+| Language    | TypeScript `5.9.3` (two tsconfigs: node + web)                                             |
+| UI          | React `19.2.1` (uses `memo`, `useTransition`, `useDeferredValue`), lucide-react icons      |
+| Styling     | Tailwind CSS `4.3.3` (partial), most UI is custom CSS (`constants/globalCss.ts`)           |
+| Data        | better-sqlite3 `13.0.3` (sync, native module), JSON settings file                          |
+| Media       | music-metadata `7.14.0` (tag/cover parsing), HTML5 `<audio>`/`<video>` + Web Audio API     |
+| Integration | discord-rpc `4.0.1`, chokidar, clsx/tailwind-merge (class utils)                           |
+| Tooling     | ESLint 9 + prettier 3.7, @electron/rebuild, vite 7.2.6, @vitejs/plugin-react               |
 
 ## 3. Commands (package.json)
 
@@ -150,16 +150,18 @@ the existing pattern (new file in `components/…`, import into App.tsx).
 ## 6. Main process — `src/main/index.ts`
 
 ### 6.1 Storage locations (all under `app.getPath('userData')`, e.g. `%APPDATA%/omus`)
-| Constant | Path | Purpose |
-|---|---|---|
-| `MUSIC_STORE_PATH` | `<userData>/OmusLibrary` | created dir (many features reference original file paths; tracks are NOT copied) |
-| `DB_PATH` | `<userData>/omus.db` | SQLite via better-sqlite3 (sync API) |
-| `SETTINGS_PATH` | `<userData>/settings.json` | whole-app settings, JSON |
+
+| Constant           | Path                       | Purpose                                                                          |
+| ------------------ | -------------------------- | -------------------------------------------------------------------------------- |
+| `MUSIC_STORE_PATH` | `<userData>/OmusLibrary`   | created dir (many features reference original file paths; tracks are NOT copied) |
+| `DB_PATH`          | `<userData>/omus.db`       | SQLite via better-sqlite3 (sync API)                                             |
+| `SETTINGS_PATH`    | `<userData>/settings.json` | whole-app settings, JSON                                                         |
 
 ⚠ **File paths ARE the primary key.** Track `id` = absolute source `filepath`. If users move
 files, entries break (no re-scan logic yet).
 
 ### 6.2 SQLite schema (`initStorage()`, runs at startup, auto-migrates)
+
 ```sql
 tracks(id TEXT PK /*=filepath*/, filename, filepath, title, artist, album,
        duration REAL, cover TEXT /*base64 data URL*/, lyrics TEXT /*LRC*/,
@@ -168,10 +170,12 @@ playlists(id TEXT PK, name TEXT, created_at INTEGER, cover_type TEXT /*auto|grad
           cover_image TEXT, cover_gradient TEXT);
 playlist_tracks(playlist_id TEXT, track_id TEXT, added_at INTEGER, PRIMARY KEY(playlist_id, track_id));
 ```
+
 Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`, `cover_type`,
 `cover_image`, `cover_gradient`).
 
 ### 6.3 Audio/Video import
+
 - Extension sets: `AUDIO_EXTS` (.mp3 .flac .wav .m4a .ogg .aac .wma .alac .aiff), `VIDEO_EXTS`
   (14 containers incl. .mp4 .webm .mkv .mov .avi .flv .wmv .ts…), `MEDIA_EXTS` = union.
 - `parseAudioFile()` uses **music-metadata** `parseFile({duration:true, skipCovers:false})`;
@@ -183,6 +187,7 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
   explicit paths incl. drag-drop (`library:parse-paths`).
 
 ### 6.4 `omus-media://` streaming protocol (⭐ core piece)
+
 - Registered as **privileged scheme before app ready** with `stream:true, supportFetchAPI:true, corsEnabled:true, bypassCSP:true`.
 - Renderer never reads raw file bytes via JS; it plays `omus-media://audio?path=<encodeURIComponent(filepath)>`.
 - Handler in `app.whenReady()` → `protocol.handle('omus-media', …)`:
@@ -194,6 +199,7 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
     bug. Never remove Range handling.
 
 ### 6.5 Window
+
 - 1320×860 (min 860×600), bg `#080808`, `autoHideMenuBar`, icon from `build/icon.ico` (win).
 - **Frameless on Windows only** (`frame:false`): custom in-app title bar (`TitleBar.tsx`,
   `TITLEBAR_H=40`). Maximize state is pushed to renderer via `window:maximized` event.
@@ -211,40 +217,42 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
 - `window-all-closed` quits (except darwin); `before-quit` destroys Discord RPC.
 
 ### 6.6 Full IPC surface (main process)
-| Channel | Type | Behavior |
-|---|---|---|
-| `library:get` | handle | `SELECT * FROM tracks ORDER BY added_at DESC` |
-| `library:parse-uploads` / `parse-folder` / `parse-paths` | handle | dialogs/DnD paths → parsed `PendingTrack[]` |
-| `library:select-cover` | handle | image dialog → `data:<mime>;base64,…` or null |
-| `library:save-tracks` | handle | upsert each (`INSERT OR REPLACE`) → saved tracks |
-| `library:delete-track` | handle | deletes track + its `playlist_tracks` rows |
-| `library:update-track-lyrics` | handle | set `lyrics` by id |
-| `track:update-lyric-offset` | handle | set `lyrics_offset` ms |
-| `library:update-track-metadata` | handle | partial UPDATE of title/artist/album/lyrics/cover |
-| `library:reveal-in-explorer` | handle | `shell.showItemInFolder` |
-| `app:open-external` | handle | validates `^https?://` then `shell.openExternal` |
-| `playlists:get/create/delete` | handle | CRUD |
-| `playlists:add-track` / `remove-track` | handle | junction rows |
-| `playlists:get-tracks` | handle | tracks of a playlist (join) |
-| `playlists:reorder-tracks` | handle | rewrite junction ordering |
-| `playlists:update` | handle | partial update (name/cover_*) |
-| `playlists:covers` | handle | `Record<playlistId, string[]>` for card art |
-| `playlists:export` | handle | writes `.m3u` (relative paths) + save dialog |
-| `playlists:import-m3u` | handle | parses `.m3u/.m3u8`, resolves relative paths, auto-imports + saves missing tracks, creates playlist |
-| `settings:get` / `settings:set` | handle | read/write `settings.json` |
-| `settings:set-sync` | on | **synchronous** `writeFileSync` — final flush during window close |
-| `settings:export-config` | handle | save dialog → writes `<name>.ocfg` (magic header + gzip of settings.json); returns `true`/`'canceled'`/`false` |
-| `settings:import-config` | handle | open dialog → decode `.ocfg` → overwrite `settings.json`; returns settings object / `null` (canceled) / `'invalid'` |
-| `updates:check` | on | manual `checkForUpdates(win, manual=true)` |
-| `discord:update` / `discord:clear` | on | rich presence |
-| `window:minimize` / `window:close` | on | BrowserWindow controls |
-| `window:toggle-maximize` / `window:is-maximized` | handle | returns bool |
-| *(event)* `window:maximized` | →renderer | maximize state push |
-| *(event)* `update-status` | →renderer | auto-update progress (checking/found/downloading/downloaded/notavailable/error) |
+
+| Channel                                                  | Type      | Behavior                                                                                                            |
+| -------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- |
+| `library:get`                                            | handle    | `SELECT * FROM tracks ORDER BY added_at DESC`                                                                       |
+| `library:parse-uploads` / `parse-folder` / `parse-paths` | handle    | dialogs/DnD paths → parsed `PendingTrack[]`                                                                         |
+| `library:select-cover`                                   | handle    | image dialog → `data:<mime>;base64,…` or null                                                                       |
+| `library:save-tracks`                                    | handle    | upsert each (`INSERT OR REPLACE`) → saved tracks                                                                    |
+| `library:delete-track`                                   | handle    | deletes track + its `playlist_tracks` rows                                                                          |
+| `library:update-track-lyrics`                            | handle    | set `lyrics` by id                                                                                                  |
+| `track:update-lyric-offset`                              | handle    | set `lyrics_offset` ms                                                                                              |
+| `library:update-track-metadata`                          | handle    | partial UPDATE of title/artist/album/lyrics/cover                                                                   |
+| `library:reveal-in-explorer`                             | handle    | `shell.showItemInFolder`                                                                                            |
+| `app:open-external`                                      | handle    | validates `^https?://` then `shell.openExternal`                                                                    |
+| `playlists:get/create/delete`                            | handle    | CRUD                                                                                                                |
+| `playlists:add-track` / `remove-track`                   | handle    | junction rows                                                                                                       |
+| `playlists:get-tracks`                                   | handle    | tracks of a playlist (join)                                                                                         |
+| `playlists:reorder-tracks`                               | handle    | rewrite junction ordering                                                                                           |
+| `playlists:update`                                       | handle    | partial update (name/cover_*)                                                                                       |
+| `playlists:covers`                                       | handle    | `Record<playlistId, string[]>` for card art                                                                         |
+| `playlists:export`                                       | handle    | writes `.m3u` (relative paths) + save dialog                                                                        |
+| `playlists:import-m3u`                                   | handle    | parses `.m3u/.m3u8`, resolves relative paths, auto-imports + saves missing tracks, creates playlist                 |
+| `settings:get` / `settings:set`                          | handle    | read/write `settings.json`                                                                                          |
+| `settings:set-sync`                                      | on        | **synchronous** `writeFileSync` — final flush during window close                                                   |
+| `settings:export-config`                                 | handle    | save dialog → writes `<name>.ocfg` (magic header + gzip of settings.json); returns `true`/`'canceled'`/`false`      |
+| `settings:import-config`                                 | handle    | open dialog → decode `.ocfg` → overwrite `settings.json`; returns settings object / `null` (canceled) / `'invalid'` |
+| `updates:check`                                          | on        | manual `checkForUpdates(win, manual=true)`                                                                          |
+| `discord:update` / `discord:clear`                       | on        | rich presence                                                                                                       |
+| `window:minimize` / `window:close`                       | on        | BrowserWindow controls                                                                                              |
+| `window:toggle-maximize` / `window:is-maximized`         | handle    | returns bool                                                                                                        |
+| _(event)_ `window:maximized`                             | →renderer | maximize state push                                                                                                 |
+| _(event)_ `update-status`                                | →renderer | auto-update progress (checking/found/downloading/downloaded/notavailable/error)                                     |
 
 ## 7. Support modules (main process)
 
 ### `src/main/discordRPC.ts`
+
 - Uses `discord-rpc` (IPC transport) with a **hardcoded DISCORD_CLIENT_ID** (must be a real
   Discord app ID, or login silently fails — app keeps working).
 - Exports `updateDiscordPresence(activity)`, `clearDiscordPresence()`, `destroyDiscordRPC()`
@@ -253,6 +261,7 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
   **non-fatal** (all wrapped in try/catch).
 
 ### `src/main/updater.ts`
+
 - `checkForUpdates(win, manual?)` → drives **electron-updater** (`autoUpdater`, v6) against the GitHub
   publish feed (`bubu07codes/omus` from `electron-builder.yml` → generated `app-update.yml`). Runs only
   in the packaged app (dev builds show a hint dialog on manual checks). `parseVersion`/`isNewer` semver
@@ -267,6 +276,7 @@ Migrations: `PRAGMA table_info(...)` checks add missing columns (`lyrics_offset`
   (requires a `GH_TOKEN` env var), or use the GitHub `--publish` flag from CI.
 
 ### `src/main/ocfg.ts`
+
 - The `.ocfg` omus-config container (Settings → Advanced → "Configuration file", at the very
   bottom): `[ "OMUSCFG1" magic ][ gzip( settings.json payload ) ]` — one tiny, self-identifying,
   shareable file holding every persisted setting (media/playlists intentionally stay in the DB).
@@ -282,6 +292,7 @@ main. The `CustomAPI` interface in `index.d.ts` is the typed contract and declar
 `global { interface Window { api: CustomAPI } }` so `window.api.*` typechecks in the renderer.
 
 Complete `window.api` surface (grouped):
+
 - **Media URL:** `getMediaUrl(filepath) → 'omus-media://audio?path=…'`
 - **Library:** `getLibrary()`, `parseUploads()`, `parseFolder()`, `parsePaths(paths)`,
   `getPathForFile(file)`, `selectCover()`, `saveTracks(pending)`, `deleteTrack(id)`,
@@ -304,11 +315,13 @@ Complete `window.api` surface (grouped):
 ## 9. Renderer — `src/renderer/src`
 
 ### 9.1 Entry (`main.tsx`)
+
 `createRoot` → `<StrictMode><ErrorBoundary><App/></ErrorBoundary></StrictMode>`.
 `ErrorBoundary` catches render errors **and** global `error`/`unhandledrejection` events,
 rendering `ErrorScreen` (message + stack + one-click copy) instead of a black window.
 
 ### 9.2 `App.tsx` — the monolith (6064 lines)
+
 Single `export default function App()` containing ALL state, handlers and views.
 
 **State sections** (all `useState` at top): library/playlists, queue + currentIndex, view +
@@ -321,18 +334,19 @@ isUploadModalOpen, isEqOpen, isSleepTimerOpen, tagEditorTrack, isManualLyricsOpe
 lyricsOptionsOpen…), upload flow (pendingUploads, editingIndex), playlist editing, zoom.
 
 **Key behaviors:**
+
 - Hydration `init()` on mount: load settings → apply theme/font/anim/layout/volume/shuffle/EQ/
   lyrics prefs → `getLibrary()` → if `resumePlayback`, `cue()` the last track + position.
   Also injects Google Fonts link (Plus Jakarta Sans / Space Grotesk).
 - **Views** (switched by `view` state; `navigateView` uses `useTransition()` for smoothness):
-  | view | App.tsx line ~ | content |
-  |---|---|---|
-  | `home` | 2587 | bento tiles: Recently Played, Most Played, Recent Added, Liked, Albums, Artists, empty-state quick start |
-  | `library` | 3328 | toolbar (import/sort/seek/select), table / card / group layouts, density, per-row actions |
-  | `playlists` | 3550 | playlist grid + detail view w/ hero cover art, custom covers, sorting, export/import |
-  | `queue` | 3869 | play queue list (QueueCard, reorder/remove/clear) |
-  | `lyrics` | 3917 | full-page synced lyrics, auto-centers active line, align/options |
-  | `settings` | 4114 | sidebar w/ 10 categories (§9.3) |
+  | view        | App.tsx line ~ | content                                                                                                  |
+  | ----------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+  | `home`      | 2587           | bento tiles: Recently Played, Most Played, Recent Added, Liked, Albums, Artists, empty-state quick start |
+  | `library`   | 3328           | toolbar (import/sort/seek/select), table / card / group layouts, density, per-row actions                |
+  | `playlists` | 3550           | playlist grid + detail view w/ hero cover art, custom covers, sorting, export/import                     |
+  | `queue`     | 3869           | play queue list (QueueCard, reorder/remove/clear)                                                        |
+  | `lyrics`    | 3917           | full-page synced lyrics, auto-centers active line, align/options                                         |
+  | `settings`  | 4114           | sidebar w/ 10 categories (§9.3)                                                                          |
 - **Fullscreen now-playing** (~5412): cover art or **muted video mirror** + visualizer + lyrics
   overlay; chrome auto-hides; modes `normal`/`cover`; optional fluid ambience. F toggles.
 - Modals: Equalizer, Sleep Timer, Tag Editor, Manual Lyrics, About, full-res cover lightbox,
@@ -346,6 +360,7 @@ lyricsOptionsOpen…), upload flow (pendingUploads, editingIndex), playlist edit
   adding settings (hydration applies them one by one).
 
 ### 9.3 Settings categories (`SETTINGS_CATS` in App.tsx)
+
 `lyrics` · `audio` (Sound & Vision: EQ, visualizer, crossfade, sleep…) · `fullscreen` ·
 `ambience` (fluid background) · `integrations` (Discord + updater) · `appearance` (theme/font/
 animation/UI scale/custom CSS) · `playback` (resume, shuffle, media keys…) · `library`
@@ -355,6 +370,7 @@ system info, and .ocfg settings export/import at the very bottom).
 ## 10. Hooks
 
 ### `useAudioEngine.ts` (⭐ audio pipeline, ~576 lines)
+
 Owns the entire audio stack. Public return: `isPlaying, currentTime, duration, volume, isMuted,
 playbackRate, isLoading, audioError, playTrack, togglePlay, cue, seek, seekRelative,
 handleVolumeChange, toggleMute, handlePlaybackRateChange, analyserNode, eqBands, eqPreamp,
@@ -377,6 +393,7 @@ startSleepTimer, cancelSleepTimer, setSongTransition`.
 - Cleanup on unmount: pause, clear src, close AudioContext.
 
 ### `useLyrics.ts`
+
 - Parses raw LRC text → sorted `LyricLine[] {time, text}`; supports multi `[mm:ss.xxx]` tags per
   line, `[offset:±ms]` tag (overridden by user-set manual offset), skips ID tags
   (`[ar:] [ti:] [al:] [by:] [length:] [re:] [ve:]`); **plain-text fallback** spreads lines 4s apart.
@@ -386,9 +403,11 @@ startSleepTimer, cancelSleepTimer, setSongTransition`.
 - `getActiveLyricIndex(currentTime)`, `adjustOffset(deltaMs)`, `resetOffset()`.
 
 ### `useToast.ts`
+
 - Simple queue (capped at 5 visible), `addToast(title, message?, type?, duration?)`, auto-dismiss.
 
 ## 11. Shared types — `src/renderer/src/types/index.ts`
+
 `Track` (id=filepath, filepath, title, artist, album, duration, cover, lyrics, lyrics_offset?,
 added_at?) · `PendingTrack` (Track minus id/filepath, + sourcePath, filename) · `Playlist`
 (cover_type: auto|gradient|image, cover_image, cover_gradient) · `LyricLine` · `Theme` (bg/
@@ -399,27 +418,28 @@ sidebarBg/cardBg/textPrimary/textSecondary/accent/customCss) · `GoogleFontPrese
 
 ## 12. Components (per-file purpose)
 
-| Component | Purpose |
-|---|---|
-| `GlobalSearch.tsx` | Ctrl/Cmd+K overlay; sections Tracks/Artists/Albums/Playlists; keyboard-navigable; album separator matches App.tsx (U+2502 `│`) |
-| `TitleBar.tsx` | frameless **Windows** title bar: minimize/max/close, double-click maximize, drag region; subscribes `window:maximized` |
-| `LyricLine.tsx` | memoized lyric row; anim modes via transform/opacity/color only (compositor-safe, no animated blur) |
-| `AudioVisualizer.tsx` | canvas visualizer (bars/wave/radial); reads AnalyserNode FFT; resolves CSS `var(--accent)` for canvas colors; idle mode when paused |
-| `TrackRows.tsx` | memoized `LibraryTableRow` / `LibraryCardRow` / `LibraryGroupRow` / `QueueCard` (pure render, callbacks passed down) |
-| `ErrorScreen.tsx` | error + stack + Copy details (used by ErrorBoundary) |
-| `LoadingScreen.tsx` | branded startup screen (fixed overlay) |
-| `Versions.tsx` | tiny Electron/Chromium/Node version line (scaffold leftover) |
-| `Equalizer/EqualizerModal.tsx` | 10-band sliders + presets, preamp, balance |
-| `Modals/AboutModal.tsx` | about/versions/credits |
-| `Modals/ManualLyricsModal.tsx` | paste/edit LRC + fetch button |
-| `Modals/SleepTimerModal.tsx` | duration / end-of-track modes, fade toggle |
-| `Modals/TagEditorModal.tsx` | edit title/artist/album/lyrics/cover |
-| `Shared/ContextMenu.tsx` | generic positioned menu |
-| `Shared/TrackContextMenu.tsx` | track actions (play, add to playlist, edit, delete…) |
-| `Shared/PlaylistCoverArt.tsx` | auto (track covers) / gradient / image cover rendering |
-| `Toast/ToastContainer.tsx` | toast list renderer |
+| Component                      | Purpose                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `GlobalSearch.tsx`             | Ctrl/Cmd+K overlay; sections Tracks/Artists/Albums/Playlists; keyboard-navigable; album separator matches App.tsx (U+2502 `│`)      |
+| `TitleBar.tsx`                 | frameless **Windows** title bar: minimize/max/close, double-click maximize, drag region; subscribes `window:maximized`              |
+| `LyricLine.tsx`                | memoized lyric row; anim modes via transform/opacity/color only (compositor-safe, no animated blur)                                 |
+| `AudioVisualizer.tsx`          | canvas visualizer (bars/wave/radial); reads AnalyserNode FFT; resolves CSS `var(--accent)` for canvas colors; idle mode when paused |
+| `TrackRows.tsx`                | memoized `LibraryTableRow` / `LibraryCardRow` / `LibraryGroupRow` / `QueueCard` (pure render, callbacks passed down)                |
+| `ErrorScreen.tsx`              | error + stack + Copy details (used by ErrorBoundary)                                                                                |
+| `LoadingScreen.tsx`            | branded startup screen (fixed overlay)                                                                                              |
+| `Versions.tsx`                 | tiny Electron/Chromium/Node version line (scaffold leftover)                                                                        |
+| `Equalizer/EqualizerModal.tsx` | 10-band sliders + presets, preamp, balance                                                                                          |
+| `Modals/AboutModal.tsx`        | about/versions/credits                                                                                                              |
+| `Modals/ManualLyricsModal.tsx` | paste/edit LRC + fetch button                                                                                                       |
+| `Modals/SleepTimerModal.tsx`   | duration / end-of-track modes, fade toggle                                                                                          |
+| `Modals/TagEditorModal.tsx`    | edit title/artist/album/lyrics/cover                                                                                                |
+| `Shared/ContextMenu.tsx`       | generic positioned menu                                                                                                             |
+| `Shared/TrackContextMenu.tsx`  | track actions (play, add to playlist, edit, delete…)                                                                                |
+| `Shared/PlaylistCoverArt.tsx`  | auto (track covers) / gradient / image cover rendering                                                                              |
+| `Toast/ToastContainer.tsx`     | toast list renderer                                                                                                                 |
 
 ## 13. Constants
+
 - `presets.ts`: `PRESET_FONTS` (Plus Jakarta Sans, Space Grotesk) · `PRESET_THEMES` (dark, amber,
   red, midnight, nord, gruvbox, forest, cyber, dracula, synthwave, concrete, light) ·
   `PRESET_ANIMATIONS` (off/subtle/snappy/smooth/spring/glow — each injects global CSS via
@@ -432,11 +452,11 @@ sidebarBg/cardBg/textPrimary/textSecondary/accent/customCss) · `GoogleFontPrese
 
 ## 14. Data & persistence summary
 
-| Store | Where | What's in it |
-|---|---|---|
-| SQLite `omus.db` | `<userData>/omus.db` | tracks + playlists + playlist_tracks (schema §6.2). Covers & lyrics stored inline (base64 / LRC text) |
-| `settings.json` | `<userData>/settings.json` | every persisted knob (SavedSettings). Written async on change, **sync flush on close** (`flushSettings`) |
-| Media files | anywhere on disk | **not copied** — referenced by absolute path |
+| Store            | Where                      | What's in it                                                                                             |
+| ---------------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| SQLite `omus.db` | `<userData>/omus.db`       | tracks + playlists + playlist_tracks (schema §6.2). Covers & lyrics stored inline (base64 / LRC text)    |
+| `settings.json`  | `<userData>/settings.json` | every persisted knob (SavedSettings). Written async on change, **sync flush on close** (`flushSettings`) |
+| Media files      | anywhere on disk           | **not copied** — referenced by absolute path                                                             |
 
 Play counts / recently played / liked ids / custom track order / rail size are persisted inside
 settings.json (not a separate table).
@@ -480,7 +500,7 @@ settings.json (not a separate table).
 17. **Fluid background memory budget** (the "black window" bug): the blurred `.fluid-bg-container`
     (plus waves/prism/nebula layers) is the app's biggest GPU-memory consumer (~90MB+). Keep the
     bleed insets small (`inset: -6%` container, `-12%`/`-18%` mode layers), `contain: paint;
-    isolation: isolate`, and the blur cap in `FluidBackgroundLayer` (40px). Never re-enlarge these
+isolation: isolate`, and the blur cap in `FluidBackgroundLayer` (40px). Never re-enlarge these
     rasters or move animations outside the contained layer — renderer OOM (`reason=oom`) follows.
 18. **Home bento ladder**: `.home-grid` is 6 columns ≥1200, 4 columns 861–1199, 2 columns 681–860,
     and only 1 column ≤680. The old `@media (max-width:1300px)` single-column collapse made Home
@@ -492,6 +512,7 @@ settings.json (not a separate table).
     lane, so switching views never shifts the layout horizontally.
 
 ## 16. Build & packaging (`electron-builder.yml` + package.json `build{}`)
+
 - Win: **NSIS** installer, `install-omus.exe` (yml) / `com.omus.app` (appId), x64 only,
   always creates desktop shortcut, uninstall display name `omus`.
 - mac: dmg, no notarize, camera/mic/docs/downloads usage descriptions.
@@ -503,14 +524,16 @@ settings.json (not a separate table).
 - Icon: `build/icon.ico` (win), `logo.svg` (mac/linux runtime).
 
 ## 17. External services (no keys in repo besides Discord ID)
-| Service | Used for | Where |
-|---|---|---|
-| LRCLIB (lrclib.net) | synced lyrics auto-fetch | `useLyrics.ts` (CSP allowlisted) |
-| GitHub | auto-update releases (electron-updater) | `src/main/updater.ts` — feed from `app-update.yml` |
-| Discord IPC | Rich Presence | `src/main/discordRPC.ts` — **hardcoded client ID** |
-| Google Fonts | Plus Jakarta Sans / Space Grotesk | `App.tsx` init + `LoadingScreen` (CSP allowlisted) |
+
+| Service             | Used for                                | Where                                              |
+| ------------------- | --------------------------------------- | -------------------------------------------------- |
+| LRCLIB (lrclib.net) | synced lyrics auto-fetch                | `useLyrics.ts` (CSP allowlisted)                   |
+| GitHub              | auto-update releases (electron-updater) | `src/main/updater.ts` — feed from `app-update.yml` |
+| Discord IPC         | Rich Presence                           | `src/main/discordRPC.ts` — **hardcoded client ID** |
+| Google Fonts        | Plus Jakarta Sans / Space Grotesk       | `App.tsx` init + `LoadingScreen` (CSP allowlisted) |
 
 ## 18. Git / version history notes
+
 - Branch `master`; tags: `v1.0.0`, `v1.1.0`, `v1.3.0` (current), `stable`. package.json = `1.3.0`.
 - Notable past work: **v1.3.0** “website for smaller devices / docs folder” (docs site),
   **v1.1.0–1.3.0** global search, collapsible sidebar, top settings, smooth lyrics, UI overhaul,
@@ -519,5 +542,5 @@ settings.json (not a separate table).
 
 ---
 
-*End of summary. When a task needs more depth, read the referenced file ranges in the target
-file (line numbers above are approximate for `App.tsx` only — verify with a quick search).*
+_End of summary. When a task needs more depth, read the referenced file ranges in the target
+file (line numbers above are approximate for `App.tsx` only — verify with a quick search)._

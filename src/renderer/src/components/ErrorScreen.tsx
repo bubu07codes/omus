@@ -35,6 +35,7 @@ export function ErrorScreen({ error, errorInfo, onReset }: ErrorScreenProps): Re
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
+      //ignor this
     }
   }
 
@@ -90,7 +91,9 @@ export function ErrorScreen({ error, errorInfo, onReset }: ErrorScreenProps): Re
         <div className="err-icon">!</div>
         <h1>Oops! Something went wrong</h1>
         <p>
-          omus hit an unexpected error, but don't worry - try reloading the app, or copy the debug details below to include in a bug report or pull request on github to help us fix the issue.
+          omus hit an unexpected error, but don&apos;t worry - try reloading the app, or copy the
+          debug details below to include in a bug report or pull request on github to help us fix
+          the issue.
         </p>
 
         <div className="err-message">{error?.message ?? 'Unknown error'}</div>

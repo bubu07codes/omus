@@ -1,13 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Search,
-  X,
-  Music,
-  Mic2,
-  Disc3,
-  ListMusic,
-  ArrowRight
-} from 'lucide-react'
+import { Search, X, Music, Mic2, Disc3, ListMusic, ArrowRight } from 'lucide-react'
 import { Track, Playlist } from '../types'
 
 // Album grouping key separator, must match the one used in App.tsx
@@ -93,9 +85,7 @@ export function GlobalSearch({
         artistMap.set(name, { name, count: 1, cover: t.cover || undefined })
       }
     }
-    const artistHits = [...artistMap.values()].filter((a) =>
-      a.name.toLowerCase().includes(q)
-    )
+    const artistHits = [...artistMap.values()].filter((a) => a.name.toLowerCase().includes(q))
     if (artistHits.length > 0) {
       out.push({
         label: 'Artists',
@@ -166,7 +156,7 @@ export function GlobalSearch({
 
     return out
   }, [query, tracks, playlists])
-const flatItems = useMemo(() => sections.flatMap((s) => s.items), [sections])
+  const flatItems = useMemo(() => sections.flatMap((s) => s.items), [sections])
 
   // Focus global search with Ctrl+K / Cmd+K
   useEffect(() => {
@@ -218,8 +208,7 @@ const flatItems = useMemo(() => sections.flatMap((s) => s.items), [sections])
       if (flatItems.length > 0) setActiveIdx((i) => (i + 1) % flatItems.length)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      if (flatItems.length > 0)
-        setActiveIdx((i) => (i - 1 + flatItems.length) % flatItems.length)
+      if (flatItems.length > 0) setActiveIdx((i) => (i - 1 + flatItems.length) % flatItems.length)
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (flatItems[activeIdx]) {
@@ -307,9 +296,7 @@ const flatItems = useMemo(() => sections.flatMap((s) => s.items), [sections])
               ))}
             </div>
           ))}
-          {flatItems.length === 0 && (
-            <div className="gs-empty">No matches for “{query}”</div>
-          )}
+          {flatItems.length === 0 && <div className="gs-empty">No matches for “{query}”</div>}
           <button type="button" className="gs-footer" onClick={runSearchLibrary}>
             <Search size={12} />
             Search library for “{query.trim()}”

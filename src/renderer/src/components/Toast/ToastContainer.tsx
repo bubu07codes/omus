@@ -29,8 +29,7 @@ export function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
             pointerEvents: 'auto',
             background: 'color-mix(in srgb, var(--card-bg) 87%, transparent)',
             border: '1px solid color-mix(in srgb, var(--text-primary) 14%, transparent)',
-            boxShadow:
-              '0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.06)',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.06)',
             borderRadius: 12,
             padding: '12px 16px',
             display: 'flex',

@@ -236,7 +236,7 @@ export const LibraryGroupRow = memo(function LibraryGroupRow({
           fontWeight: 700
         }}
       >
-        {groupIndex + 1 + "."}
+        {groupIndex + 1 + '.'}
       </span>
       <span
         style={{
@@ -284,9 +284,7 @@ export const QueueCard = memo(function QueueCard({
       onContextMenu={(e) => onContextMenu(e, track, index)}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)', width: 22 }}>
-          {index + 1}
-        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)', width: 22 }}>{index + 1}</span>
         <div className="art-thumb">{track.cover && <img src={track.cover} alt="" />}</div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div

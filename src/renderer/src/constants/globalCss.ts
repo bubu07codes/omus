@@ -649,46 +649,58 @@ export const GLOBAL_CSS = `
 .switch-label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: transparent; border: none; padding: 6px 0; color: var(--text-secondary); font-size: 12px; font-weight: 700; font-family: var(--font); transition: var(--transition); }
 .switch-label:hover { color: var(--text-primary); }
 
-  /* EQ range sliders - horizontal & vertical (styled tracks and thumbs) */
-  .eq-range,
-  .eq-range-vert {
+  /* ============================================================
+     CUSTOM SLIDERS — every <input type="range"> gets the same
+     polished look: slim rounded track with an accent fill up to
+     the thumb (driven by the --fill custom property that the
+     <NiceSlider> component sets) and a smooth scaling thumb.
+     ============================================================ */
+  input[type='range'] {
     appearance: none;
     -webkit-appearance: none;
-    background: rgba(128,128,128,0.22);
+    height: 5px;
     border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--accent) var(--fill, 0%),
+      rgba(128, 128, 128, 0.25) var(--fill, 0%)
+    );
     outline: none;
     cursor: pointer;
-    transition: background 0.2s ease;
   }
-  .eq-range { height: 4px; }
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    border: none;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  input[type='range']:hover::-webkit-slider-thumb {
+    transform: scale(1.2);
+    background: var(--accent);
+  }
+  input[type='range']:active::-webkit-slider-thumb {
+    transform: scale(1.3);
+  }
+  input[type='range']:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  /* Vertical variants (EQ bands/preamp) fill bottom → top */
   .eq-range-vert {
     writing-mode: vertical-lr;
     direction: rtl;
     width: 4px;
+    background: linear-gradient(
+      to top,
+      var(--accent) var(--fill, 0%),
+      rgba(128, 128, 128, 0.25) var(--fill, 0%)
+    );
   }
-  .eq-range:hover,
-  .eq-range-vert:hover { background: rgba(128,128,128,0.34); }
-  .eq-range::-webkit-slider-thumb,
-  .eq-range-vert::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--text-primary);
-    cursor: pointer;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.5);
-    transition: transform 0.15s ease, background 0.15s ease;
-  }
-  .eq-range:hover::-webkit-slider-thumb,
-  .eq-range-vert:hover::-webkit-slider-thumb {
-    transform: scale(1.25);
-    background: var(--accent);
-  }
-  .eq-range:active::-webkit-slider-thumb,
-  .eq-range-vert:active::-webkit-slider-thumb { transform: scale(1.35); }
-  .eq-range:disabled,
-  .eq-range-vert:disabled { opacity: 0.45; cursor: not-allowed; }
 
   /* EQ band grid (settings + modal) */
   .eq-bands-grid {
@@ -826,9 +838,7 @@ export const GLOBAL_CSS = `
   .sp-btn-lyrics:hover { color: var(--text-primary); border-color: var(--accent); transform: translateY(-1px); }
   .sp-btn-lyrics[data-active="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
   .sp-vol-group { display: flex; align-items: center; gap: 8px; margin-left: 6px; position: relative; }
-  .sp-vol-slider { width: 90px; height: 4px; border-radius: 2px; appearance: none; -webkit-appearance: none; background: rgba(128,128,128,0.24); outline: none; cursor: pointer; }
-  .sp-vol-slider::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--text-primary); cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.4); transition: transform 0.15s ease; }
-  .sp-vol-slider:hover::-webkit-slider-thumb { transform: scale(1.2); background: var(--accent); }
+  .sp-vol-slider { width: 90px; height: 4px; }
 
   /* Loading indicator in player bar */
   .sp-loading-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: loadingPulse 0.8s ease-in-out infinite; }
@@ -1725,10 +1735,9 @@ export const GLOBAL_CSS = `
     .sp-vol-group .sp-vol-slider {
       position: absolute; left: 50%; bottom: calc(100% + 12px);
       transform: translateX(-50%);
-      width: 4px; height: 90px;
-      background: rgba(128,128,128,0.24);
-      padding: 18px 6px;
-      border-radius: 6px;
+      width: 4px; height: 76px;
+      background: linear-gradient(to top, var(--accent) var(--fill, 0%), rgba(128,128,128,0.24) var(--fill, 0%));
+      border-radius: 999px;
       writing-mode: vertical-lr; direction: rtl;
       appearance: none; -webkit-appearance: none;
       opacity: 0; pointer-events: none;
@@ -2102,17 +2111,6 @@ export const GLOBAL_CSS = `
   .mini-volslider.open { width: 84px; margin-left: 6px; opacity: 1; pointer-events: auto; }
   .mini-volslider input[type='range'] {
     display: block; width: 100%; height: 4px; border-radius: 2px;
-    appearance: none; -webkit-appearance: none;
-    background: rgba(255,255,255,0.26); outline: none; cursor: pointer;
-  }
-  .mini-volslider input[type='range']::-webkit-slider-thumb {
-    appearance: none; -webkit-appearance: none;
-    width: 12px; height: 12px; border-radius: 50%;
-    background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.55);
-    transition: transform 0.15s ease, background 0.15s ease;
-  }
-  .mini-volslider input[type='range']:hover::-webkit-slider-thumb {
-    transform: scale(1.15); background: var(--accent);
   }
   .mini-close:hover { background: rgba(255,90,90,0.4); }
 

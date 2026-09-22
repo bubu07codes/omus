@@ -36,7 +36,14 @@ describe('initDatabaseSchema', () => {
       ])
     )
     expect(columnNames(db, 'playlists')).toEqual(
-      expect.arrayContaining(['id', 'name', 'created_at', 'cover_type', 'cover_image', 'cover_gradient'])
+      expect.arrayContaining([
+        'id',
+        'name',
+        'created_at',
+        'cover_type',
+        'cover_image',
+        'cover_gradient'
+      ])
     )
     expect(columnNames(db, 'playlist_tracks')).toEqual(
       expect.arrayContaining(['playlist_id', 'track_id', 'added_at'])
@@ -74,11 +81,13 @@ describe('database CRUD', () => {
   let db: Database.Database
 
   function insertTrack(id: string, title = 'Song'): void {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT OR REPLACE INTO tracks
         (id, filename, filepath, title, artist, album, duration, cover, lyrics, lyrics_offset, added_at)
       VALUES (@id, @filename, @filepath, @title, @artist, @album, @duration, @cover, @lyrics, @lyrics_offset, @added_at)
-    `).run({
+    `
+    ).run({
       id,
       filename: id.split(/[\\/]/).pop() || id,
       filepath: id,
@@ -128,18 +137,18 @@ describe('database CRUD', () => {
     )
     insertTrack('/audio/a.mp3', 'A')
 
-    db.prepare('INSERT INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)').run(
-      'pl_1',
-      '/audio/a.mp3',
-      1
-    )
+    db.prepare(
+      'INSERT INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)'
+    ).run('pl_1', '/audio/a.mp3', 1)
 
     const rows = db
-      .prepare(`
+      .prepare(
+        `
         SELECT t.title FROM tracks t
         JOIN playlist_tracks pt ON t.id = pt.track_id
         WHERE pt.playlist_id = ? ORDER BY pt.added_at ASC
-      `)
+      `
+      )
       .all('pl_1')
     expect(rows).toEqual([{ title: 'A' }])
 

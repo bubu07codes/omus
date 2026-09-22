@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { NiceSlider, volumeToSliderPos, sliderPosToVolume } from './NiceSlider'
 import {
   Play,
   Pause,
@@ -226,15 +227,14 @@ export function MiniPlayer({
               onMouseEnter={() => setVolOpen(true)}
               onMouseLeave={() => setVolOpen(false)}
             >
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={isMuted ? 0 : volume}
-                onChange={(e) => onVolumeChange(Number(e.target.value))}
+              <NiceSlider
+                min={0}
+                max={1}
+                step={0.01}
+                value={volumeToSliderPos(isMuted ? 0 : volume)}
+                onChange={(p) => onVolumeChange(sliderPosToVolume(p))}
                 title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}%`}
-                aria-label="Volume"
+                ariaLabel="Volume"
               />
             </div>
           </div>

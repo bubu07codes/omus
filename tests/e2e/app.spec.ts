@@ -52,8 +52,8 @@ function makeCoverMp3Bytes(): Buffer {
   const mime = 'image/jpeg'
   const description = ''
   const picture = Buffer.from([
-    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
-    0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
+    0x00, 0x01, 0x00, 0x00, 0xff, 0xd9
   ])
   const encoder = Buffer.from([0])
   const frameData = Buffer.concat([
@@ -72,7 +72,11 @@ function makeCoverMp3Bytes(): Buffer {
 
   const syncsafe = (n: number) =>
     Buffer.from([(n >> 21) & 0x7f, (n >> 14) & 0x7f, (n >> 7) & 0x7f, n & 0x7f])
-  const tag = Buffer.concat([Buffer.from('ID3', 'latin1'), Buffer.from([3, 0, 0]), syncsafe(frame.length)])
+  const tag = Buffer.concat([
+    Buffer.from('ID3', 'latin1'),
+    Buffer.from([3, 0, 0]),
+    syncsafe(frame.length)
+  ])
   return Buffer.concat([tag, frame, Buffer.alloc(512, 0x55)])
 }
 
@@ -125,10 +129,10 @@ test.describe('omus app smoke tests', () => {
 
   /** Invoke a renderer-side `window.api.*` method and return its result. */
   function invoke<T>(method: string, ...args: unknown[]): Promise<T> {
-    return window.evaluate(
-      ({ method, args }) => (globalThis as any).api[method](...args),
-      { method, args }
-    )
+    return window.evaluate(({ method, args }) => (globalThis as any).api[method](...args), {
+      method,
+      args
+    })
   }
 
   test('window opens and the full UI renders', async () => {
@@ -266,10 +270,7 @@ test.describe('omus app smoke tests', () => {
     const WAV_COUNT = 40
     for (let i = 0; i < WAV_COUNT; i++) {
       const sub = i % 4 === 0 ? 'nested' : ''
-      await fs.writeFile(
-        path.join(musicDir, sub, `track-${String(i).padStart(3, '0')}.wav`),
-        wav
-      )
+      await fs.writeFile(path.join(musicDir, sub, `track-${String(i).padStart(3, '0')}.wav`), wav)
     }
     // One MP3 with an embedded cover — exercises the disk-backed cover pipeline.
     const mp3Source = path.join(musicDir, 'cover-song.mp3')
@@ -280,12 +281,9 @@ test.describe('omus app smoke tests', () => {
     await fs.writeFile(path.join(musicDir, 'nested', 'cover.png'), Buffer.alloc(96, 0x89))
 
     try {
-      await app.evaluate(
-        ({ dialog }, folderPath: string) => {
-          dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folderPath] })
-        },
-        musicDir
-      )
+      await app.evaluate(({ dialog }, folderPath: string) => {
+        dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folderPath] })
+      }, musicDir)
       const tracks = await invoke<Array<{ title: string; duration: number }>>('parseFolder')
       expect(tracks).toHaveLength(WAV_COUNT + 1)
       expect(tracks.filter((t) => t.title.startsWith('track-'))).toHaveLength(WAV_COUNT)
@@ -298,7 +296,9 @@ test.describe('omus app smoke tests', () => {
         tracks
       )
       expect(saved).toHaveLength(WAV_COUNT + 1)
-      expect(saved.filter((s) => s.filename.endsWith('.wav')).every((s) => s.cover === '')).toBe(true)
+      expect(saved.filter((s) => s.filename.endsWith('.wav')).every((s) => s.cover === '')).toBe(
+        true
+      )
 
       // The MP3 cover went to <OmusLibrary>/covers/<sha1-of-id>.jpg and is
       // served back through the omus-cover:// protocol as a tiny URL.

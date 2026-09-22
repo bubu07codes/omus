@@ -19,9 +19,12 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
 
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => {
-    window.api?.getAppVersion?.().then(setAppVersion).catch(() => {
-      /* empty */
-    })
+    window.api
+      ?.getAppVersion?.()
+      .then(setAppVersion)
+      .catch(() => {
+        /* empty */
+      })
   }, [])
 
   return (
@@ -170,16 +173,30 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
         <h1 className="about-title">omus</h1>
 
         <p className="about-desc">
-          <strong>omus</strong> is a local desktop music player. Built natively with modern web technologies, it blends zero-latency playback with a rich feature set, completely open-source and free of bloat.
+          <strong>omus</strong> is a local desktop music player. Built natively with modern web
+          technologies, it blends zero-latency playback with a rich feature set, completely
+          open-source and free of bloat.
         </p>
 
         <div className="about-feats">
-          <div className="about-feat"><Sparkles size={15} /> Audio Visualizer</div>
-          <div className="about-feat"><Zap size={15} /> Instant Seeking</div>
-          <div className="about-feat"><Music size={15} /> 10-Band EQ</div>
-          <div className="about-feat"><Text size={15} /> Synced Lyrics</div>
-          <div className="about-feat"><Star size={15} /> Dynamic Themes</div>
-          <div className="about-feat"><Globe size={15} /> Open Source</div>
+          <div className="about-feat">
+            <Sparkles size={15} /> Audio Visualizer
+          </div>
+          <div className="about-feat">
+            <Zap size={15} /> Instant Seeking
+          </div>
+          <div className="about-feat">
+            <Music size={15} /> 10-Band EQ
+          </div>
+          <div className="about-feat">
+            <Text size={15} /> Synced Lyrics
+          </div>
+          <div className="about-feat">
+            <Star size={15} /> Dynamic Themes
+          </div>
+          <div className="about-feat">
+            <Globe size={15} /> Open Source
+          </div>
         </div>
 
         <button className="about-github" onClick={() => go(GITHUB_URL)}>
@@ -192,14 +209,14 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
         </div>
 
         <span
-                style={{
-                  display: 'block',
-                  marginTop: 14,
-                  fontSize: 12,
-                  color: 'var(--text-secondary)'
-                }}
-              >
-                {appVersion ? `omus v${appVersion}` : ''}
+          style={{
+            display: 'block',
+            marginTop: 14,
+            fontSize: 12,
+            color: 'var(--text-secondary)'
+          }}
+        >
+          {appVersion ? `omus v${appVersion}` : ''}
         </span>
       </div>
     </div>

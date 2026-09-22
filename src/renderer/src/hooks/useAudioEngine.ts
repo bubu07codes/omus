@@ -52,9 +52,7 @@ export const EQ_PRESETS: EQPreset[] = [
 const MEDIA_ARTWORK_SAFE = /^(https?:|data:|blob:)/i
 
 function mediaArtworkFor(src: string): Array<{ src: string; sizes: string; type: string }> {
-  return MEDIA_ARTWORK_SAFE.test(src)
-    ? [{ src, sizes: '512x512', type: 'image/png' }]
-    : []
+  return MEDIA_ARTWORK_SAFE.test(src) ? [{ src, sizes: '512x512', type: 'image/png' }] : []
 }
 
 async function mediaArtworkDataUrl(src: string): Promise<string | null> {

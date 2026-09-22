@@ -68,9 +68,7 @@ export function TitleBar({ onAbout, onSettings, center }: TitleBarProps): React.
         <span style={{ display: 'none', fontWeight: 800, fontSize: 18 }}>omus</span>
       </div>
 
-      {IS_WINDOWS && center && (
-        <div className="title-bar-center">{center}</div>
-      )}
+      {IS_WINDOWS && center && <div className="title-bar-center">{center}</div>}
 
       {IS_WINDOWS && (
         <div className="title-bar-controls" data-no-drag="true">

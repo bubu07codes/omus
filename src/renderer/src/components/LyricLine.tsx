@@ -30,8 +30,7 @@ function getLyricAnim(
     filter: `blur(${blurPx}px)`,
     transformOrigin: origin
   }
-  const smooth =
-    'transform 0.55s cubic-bezier(0.22,1,0.36,1), opacity 0.55s ease, color 0.55s ease'
+  const smooth = 'transform 0.55s cubic-bezier(0.22,1,0.36,1), opacity 0.55s ease, color 0.55s ease'
 
   switch (lyricAnimation) {
     case 'slide':
@@ -39,11 +38,7 @@ function getLyricAnim(
         className: '',
         style: {
           ...base,
-          transform: isActive
-            ? 'translateX(0)'
-            : isPast
-              ? 'translateX(18px)'
-              : 'translateX(-14px)',
+          transform: isActive ? 'translateX(0)' : isPast ? 'translateX(18px)' : 'translateX(-14px)',
           transition: smooth
         }
       }
@@ -148,9 +143,7 @@ export const LyricLine = memo(function LyricLine({
         padding: `${lyricFontSize * lyricLineGap * (isFullscreen ? 0.9 : 1)}px 0`,
         cursor: isFullscreen ? 'pointer' : undefined,
         textTransform: lyricUppercase ? 'uppercase' : 'none',
-        ...(isFullscreen
-          ? { overflowWrap: 'anywhere', wordBreak: 'break-word' }
-          : {}),
+        ...(isFullscreen ? { overflowWrap: 'anywhere', wordBreak: 'break-word' } : {}),
         ...anim.style
       }}
       onClick={() => onSeek(line.time)}

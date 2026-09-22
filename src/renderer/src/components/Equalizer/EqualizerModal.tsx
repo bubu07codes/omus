@@ -1,6 +1,7 @@
 import { X, RotateCcw, Sliders } from 'lucide-react'
 import { EQBand } from '../../types'
 import { EQ_PRESETS } from '../../hooks/useAudioEngine'
+import { NiceSlider } from '../NiceSlider'
 
 interface EqualizerModalProps {
   isOpen: boolean
@@ -104,13 +105,12 @@ export function EqualizerModal({
                   justifyContent: 'center'
                 }}
               >
-                <input
-                  type="range"
-                  min="-6"
-                  max="6"
-                  step="0.5"
+                <NiceSlider
+                  min={-6}
+                  max={6}
+                  step={0.5}
                   value={eqPreamp}
-                  onChange={(e) => onPreampChange(Number(e.target.value))}
+                  onChange={onPreampChange}
                   className="eq-range-vert"
                   style={{ height: 140 }}
                 />
@@ -148,13 +148,12 @@ export function EqualizerModal({
                       justifyContent: 'center'
                     }}
                   >
-                    <input
-                      type="range"
-                      min="-12"
-                      max="12"
-                      step="0.5"
+                    <NiceSlider
+                      min={-12}
+                      max={12}
+                      step={0.5}
                       value={band.gain}
-                      onChange={(e) => onBandChange(idx, Number(e.target.value))}
+                      onChange={(gain) => onBandChange(idx, gain)}
                       className="eq-range-vert"
                       style={{ height: 140 }}
                     />

@@ -28,13 +28,13 @@
 
 ## ✨ Key Features
 
-* **🎧 Plays Anything:** Full support for `MP3`, `FLAC`, `WAV`, `M4A`, `OGG`, `AAC`, `WMA`, `ALAC`, `AIFF`, plus **video files** (`MP4`, `WEBM`, `MKV`, etc.) with a built-in video player.
-* **🎤 Synced LRC Lyrics:** Automatic online lookup via LRCLIB + manual LRC editor, timing offsets, and instant click-to-seek playback.
-* **🎚️ Pro Audio Controls:** Audio equalizer with presets, preamp/balance controls, crossfade transitions, and real-time visualizers.
-* **🔍 Instant Navigation:** Global search anywhere (`Ctrl + K`) to search across tracks, artists, albums, and playlists instantly.
-* **🎮 Discord Rich Presence:** Live integration displaying your currently playing track on your Discord profile.
-* **🏷️ Library Management:** M3U playlist import/export, metadata tag editor, custom playlist cover art, and drag-and-drop file import.
-* **🎨 Deep Customization:** Custom app themes, Font selections, UI scale adjustment, and fluid ambient background types.
+- **🎧 Plays Anything:** Full support for `MP3`, `FLAC`, `WAV`, `M4A`, `OGG`, `AAC`, `WMA`, `ALAC`, `AIFF`, plus **video files** (`MP4`, `WEBM`, `MKV`, etc.) with a built-in video player.
+- **🎤 Synced LRC Lyrics:** Automatic online lookup via LRCLIB + manual LRC editor, timing offsets, and instant click-to-seek playback.
+- **🎚️ Pro Audio Controls:** Audio equalizer with presets, preamp/balance controls, crossfade transitions, and real-time visualizers.
+- **🔍 Instant Navigation:** Global search anywhere (`Ctrl + K`) to search across tracks, artists, albums, and playlists instantly.
+- **🎮 Discord Rich Presence:** Live integration displaying your currently playing track on your Discord profile.
+- **🏷️ Library Management:** M3U playlist import/export, metadata tag editor, custom playlist cover art, and drag-and-drop file import.
+- **🎨 Deep Customization:** Custom app themes, Font selections, UI scale adjustment, and fluid ambient background types.
 
 ---
 
@@ -60,31 +60,32 @@ Contributions, feature requests, and bug reports are very welcome!
    ```bash
    git clone https://github.com/bubu07codes/omus.git
    cd omus
+   ```
 
-```
+````
 
 3. **Install dependencies**:
 ```bash
 npm install
 
-```
-
+````
 
 4. **Create a new branch** for your feature or fix:
+
 ```bash
 git checkout -b my-new-feature
 
 ```
 
-
 5. **Start dev mode** and make your code changes:
+
 ```bash
 npm run dev
 
 ```
 
-
 6. **Verify types** and commit your changes:
+
 ```bash
 npm run typecheck
 git add .
@@ -92,7 +93,6 @@ git commit -m "feat: add my new feature"
 git push origin my-new-feature
 
 ```
-
 
 7. Open GitHub, go to your forked repo, and click **"Compare & pull request"**!
 
