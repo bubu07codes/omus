@@ -1,5 +1,5 @@
 import React from 'react'
-import { Play, ListPlus, ListOrdered, Edit3, FolderOpen, Trash2, X } from 'lucide-react'
+import { Play, ListPlus, ListOrdered, Edit3, FolderOpen, Trash2, X, Heart } from 'lucide-react'
 import { Track } from '../../types'
 import { ContextMenu, ContextMenuOption } from './ContextMenu'
 
@@ -16,6 +16,7 @@ export interface TrackMenuHandlers {
   onRevealInExplorer: (track: Track) => void
   onRemoveFromPlaylist?: (track: Track) => void
   onDeleteFromLibrary: (track: Track) => void
+  onToggleLike?: (track: Track) => void
 }
 
 /**
@@ -30,6 +31,7 @@ export function TrackContextMenu({
   fromPlaylist = false,
   onPlay,
   handlers,
+  isLiked = false,
   onClose
 }: {
   x: number
@@ -38,6 +40,7 @@ export function TrackContextMenu({
   fromPlaylist?: boolean
   onPlay: () => void
   handlers: TrackMenuHandlers
+  isLiked?: boolean
   onClose: () => void
 }): React.ReactElement {
   const options: ContextMenuOption[] = [
@@ -51,7 +54,16 @@ export function TrackContextMenu({
       label: 'Add to Queue',
       icon: <ListOrdered size={14} />,
       onClick: () => handlers.onAddToQueue(track)
-    },
+    }
+  ]
+  if (handlers.onToggleLike) {
+    options.push({
+      label: isLiked ? 'Unlike' : 'Like',
+      icon: <Heart size={14} fill={isLiked ? 'currentColor' : 'none'} />,
+      onClick: () => handlers.onToggleLike!(track)
+    })
+  }
+  options.push(
     {
       label: 'Edit',
       icon: <Edit3 size={14} />,
@@ -62,7 +74,7 @@ export function TrackContextMenu({
       icon: <FolderOpen size={14} />,
       onClick: () => handlers.onRevealInExplorer(track)
     }
-  ]
+  )
 
   if (fromPlaylist && handlers.onRemoveFromPlaylist) {
     options.push({

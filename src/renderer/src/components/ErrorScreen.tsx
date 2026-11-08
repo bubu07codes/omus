@@ -82,7 +82,7 @@ export function ErrorScreen({ error, errorInfo, onReset }: ErrorScreenProps): Re
           transition: transform 0.12s ease, background 0.12s ease, opacity 0.12s ease;
         }
         .err-actions button:hover { background: rgba(255,255,255,0.08); }
-        .err-actions button:active { transform: translateY(1px); }
+        .err-actions button:active { transform: scale(0.97); }
         .err-actions .primary { background: #fff; color: #000; border-color: #fff; }
         .err-actions .primary:hover { opacity: 0.9; }
       `}</style>

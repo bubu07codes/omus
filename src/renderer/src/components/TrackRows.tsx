@@ -88,8 +88,9 @@ export const LibraryTableRow = memo(function LibraryTableRow({
       </td>
       <td>
         <button
-          className="row-action"
+          className="row-action icon-btn xs"
           title="Edit"
+          aria-label="Edit track"
           onClick={(e) => {
             e.stopPropagation()
             onTagEdit(track)
@@ -99,7 +100,12 @@ export const LibraryTableRow = memo(function LibraryTableRow({
         </button>
       </td>
       <td>
-        <button className="row-action" title="Delete track" onClick={(e) => onDelete(track.id, e)}>
+        <button
+          className="row-action icon-btn xs"
+          title="Delete track"
+          aria-label="Delete track"
+          onClick={(e) => onDelete(track.id, e)}
+        >
           <Trash2 size={13} />
         </button>
       </td>
@@ -317,22 +323,29 @@ export const QueueCard = memo(function QueueCard({
       </div>
       <div className="queue-actions" onClick={(e) => e.stopPropagation()}>
         <button
-          className="queue-btn"
+          className="queue-btn icon-btn xs"
           disabled={index === 0}
           onClick={() => onMove(index, 'up')}
           title="Move Up"
+          aria-label="Move up"
         >
           <ChevronUp size={14} />
         </button>
         <button
-          className="queue-btn"
+          className="queue-btn icon-btn xs"
           disabled={isLast}
           onClick={() => onMove(index, 'down')}
           title="Move Down"
+          aria-label="Move down"
         >
           <ChevronDown size={14} />
         </button>
-        <button className="queue-btn" onClick={() => onRemove(index)} title="Remove">
+        <button
+          className="queue-btn icon-btn xs"
+          onClick={() => onRemove(index)}
+          title="Remove"
+          aria-label="Remove"
+        >
           <X size={14} />
         </button>
       </div>

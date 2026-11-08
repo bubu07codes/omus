@@ -37,6 +37,7 @@ import {
   Clock3,
   Sparkles,
   Heart,
+  ListFilter,
   Maximize2,
   Minimize2,
   MonitorPlay,
@@ -73,10 +74,12 @@ import {
   Theme,
   VisualizerMode,
   SortConfig,
-  LyricAnimationType
+  LibrarySortField,
+  LyricAnimationType,
+  LyricWordSyncMode
 } from './types'
 import { useAudioEngine, EQ_PRESETS } from './hooks/useAudioEngine'
-import { useLyrics } from './hooks/useLyrics'
+import { useLyrics, getLineWordTokens } from './hooks/useLyrics'
 import { useToast } from './hooks/useToast'
 import { AudioVisualizer } from './components/Visualizer/AudioVisualizer'
 import { EqualizerModal } from './components/Equalizer/EqualizerModal'
@@ -130,6 +133,9 @@ interface SavedSettings {
   animId?: string
   libraryLayout?: 'grid' | 'table' | 'group'
   libraryDensity?: 'comfortable' | 'compact'
+  librarySortKey?: LibrarySortField
+  librarySortDir?: 'asc' | 'desc'
+  showRemaining?: boolean
   volume?: number
   shuffleOn?: boolean
   repeatMode?: 'off' | 'all' | 'one'
@@ -155,7 +161,9 @@ interface SavedSettings {
   lyricDimLevel?: number
   lyricActiveScale?: number
   lyricUppercase?: boolean
+  lyricBracketsSmall?: boolean
   lyricAnimation?: 'scale' | 'slide' | 'glow' | 'fade' | 'wave'
+  lyricWordSync?: LyricWordSyncMode
   visualizerMode?: VisualizerMode
   eqPreset?: string
   eqPreamp?: number
@@ -425,6 +433,13 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [libraryLayout, setLibraryLayout] = useState<'grid' | 'table' | 'group'>('table')
   const [libraryDensity, setLibraryDensity] = useState<'comfortable' | 'compact'>('comfortable')
+  // QoL: library sorting (persisted), liked-only filter, compact stats strip
+  const [librarySort, setLibrarySort] = useState<{ key: LibrarySortField; dir: 'asc' | 'desc' }>({
+    key: 'added_at',
+    dir: 'desc'
+  })
+  const [likedOnly, setLikedOnly] = useState(false)
+  const [showRemaining, setShowRemaining] = useState(false)
   // Albums view: which album groups are collapsed (key → collapsed)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
 
@@ -498,6 +513,34 @@ export default function App() {
   const [lyricsOptionsOpen, setLyricsOptionsOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [activeSettingsCat, setActiveSettingsCat] = useState('lyrics')
+  const [settingsSearch, setSettingsSearch] = useState('')
+  const settingsSearchRef = useRef<HTMLInputElement>(null)
+
+  // Filter settings rows by search query.
+  const matchSettingsRow = (text: string): boolean => {
+    const q = settingsSearch.trim().toLowerCase()
+    if (!q) return true
+    return text.toLowerCase().includes(q)
+  }
+
+  // DOM-based settings search filtering: hide/show rows based on their text content.
+  useEffect(() => {
+    const rows = document.querySelectorAll('.settings-row')
+    const visiblePerCat = new Map<string, number>()
+    rows.forEach((row) => {
+      const el = row as HTMLElement
+      const text = el.textContent || ''
+      const show = matchSettingsRow(text)
+      el.dataset.searchHide = show ? 'false' : 'true'
+      const cat = el.closest('.settings-cat') as HTMLElement | null
+      if (!cat || !cat.id) return
+      visiblePerCat.set(cat.id, (visiblePerCat.get(cat.id) || 0) + (show ? 1 : 0))
+    })
+    visiblePerCat.forEach((count, catId) => {
+      const cat = document.getElementById(catId)
+      if (cat) cat.dataset.searchHide = count > 0 ? 'false' : 'true'
+    })
+  }, [settingsSearch])
 
   // ---- Upload Flow ----
   const [pendingUploads, setPendingUploads] = useState<PendingTrack[]>([])
@@ -590,10 +633,15 @@ export default function App() {
   const [lyricDimLevel, setLyricDimLevel] = useState<number>(0.3)
   const [lyricActiveScale, setLyricActiveScale] = useState<number>(1.04)
   const [lyricUppercase, setLyricUppercase] = useState<boolean>(false)
+  const [lyricBracketsSmall, setLyricBracketsSmall] = useState<boolean>(false)
   // Animation style for the active lyric line.
   const [lyricAnimation, setLyricAnimation] = useState<
     'scale' | 'slide' | 'glow' | 'fade' | 'wave'
   >('scale')
+  // Word-by-word (karaoke) lyrics: 'auto' highlights words whenever the lyrics
+  // carry word timings (enhanced/A2 LRC), 'interpolate' also spreads plain
+  // line-synced lyrics word by word, 'off' keeps classic line-by-line sync.
+  const [lyricWordSync, setLyricWordSync] = useState<LyricWordSyncMode>('auto')
 
   // ---- Discord Rich Presence ----
   const [discordEnabled, setDiscordEnabled] = useState<boolean>(false)
@@ -606,6 +654,42 @@ export default function App() {
     { id: 'fade', name: 'Fade' },
     { id: 'wave', name: 'Wave' }
   ]
+
+  // Word-by-word sync styles (Settings → Lyrics + the lyrics options popup).
+  const LYRIC_WORD_SYNC_OPTIONS: { id: LyricWordSyncMode; name: string; hint: string }[] = [
+    { id: 'off', name: 'Off', hint: 'Line-by-line sync only.' },
+    {
+      id: 'auto',
+      name: 'Word tags',
+      hint: 'Highlight words when the lyrics carry word timings (enhanced / A2 LRC).'
+    },
+    {
+      id: 'interpolate',
+      name: 'Estimate',
+      hint: 'Syllable-aware karaoke timing for ordinary line-synced lyrics.'
+    }
+  ]
+
+  /**
+   * Preview tokens for the Settings → Lyrics card: renders the middle preview
+   * line the way the current word-sync mode renders real lyrics (sung / active /
+   * upcoming words), without touching the live lyric engine.
+   */
+  const previewWordTokens = (
+    text: string
+  ): { text: string; state: 'sung' | 'active' | 'upcoming' }[] | null => {
+    if (lyricWordSync === 'off') return null
+    const tokens = getLineWordTokens({ time: 0, text, endTime: 4 }, lyricWordSync === 'interpolate')
+    if (!tokens) return null
+    const wordCount = tokens.filter((t) => t.index >= 0).length
+    if (wordCount === 0) return null
+    const activeAt = Math.floor(wordCount / 2)
+    return tokens.map((t) => ({
+      text: t.text,
+      state:
+        t.index < 0 || t.index < activeAt ? 'sung' : t.index === activeAt ? 'active' : 'upcoming'
+    }))
+  }
 
   // ---- Toast ----
   const { toasts, addToast, removeToast } = useToast()
@@ -689,9 +773,11 @@ export default function App() {
   const {
     setRawLyrics,
     parsedLyrics,
+    hasWordTimings,
     offsetMs,
     setOffsetMs,
     getActiveLyricIndex,
+    getWordState,
     fetchLyricsFromOnline,
     isFetchingLyrics: isFetchingCurrentLyrics
   } = lyricsEngine
@@ -699,6 +785,17 @@ export default function App() {
   const activeLyricIndex = useMemo(
     () => getActiveLyricIndex(currentTime),
     [currentTime, getActiveLyricIndex]
+  )
+
+  // Word-by-word (karaoke) state — computed for the ACTIVE line only, so the
+  // 4Hz re-render touches a single lyric line instead of the whole list (every
+  // other line receives `null`, which keeps its memoized props stable).
+  const activeWordState = useMemo(
+    () =>
+      lyricWordSync === 'off' || activeLyricIndex < 0
+        ? null
+        : getWordState(activeLyricIndex, currentTime, lyricWordSync === 'interpolate'),
+    [lyricWordSync, activeLyricIndex, currentTime, getWordState]
   )
 
   // ----- Computed -----
@@ -1100,6 +1197,12 @@ export default function App() {
             if (typeof saved.uiScale === 'number') setUiScale(saved.uiScale)
             if (saved.libraryLayout) setLibraryLayout(saved.libraryLayout)
             if (saved.libraryDensity) setLibraryDensity(saved.libraryDensity)
+            if (saved.librarySortKey)
+              setLibrarySort({
+                key: saved.librarySortKey,
+                dir: saved.librarySortDir === 'asc' ? 'asc' : 'desc'
+              })
+            if (typeof saved.showRemaining === 'boolean') setShowRemaining(saved.showRemaining)
             if (typeof saved.volume === 'number') handleVolumeChange(saved.volume)
             if (typeof saved.shuffleOn === 'boolean') setShuffleOn(saved.shuffleOn)
             if (saved.repeatMode) setRepeatMode(saved.repeatMode)
@@ -1134,6 +1237,8 @@ export default function App() {
             if (typeof saved.lyricActiveScale === 'number')
               setLyricActiveScale(saved.lyricActiveScale)
             if (typeof saved.lyricUppercase === 'boolean') setLyricUppercase(saved.lyricUppercase)
+            if (typeof saved.lyricBracketsSmall === 'boolean')
+              setLyricBracketsSmall(saved.lyricBracketsSmall)
             if (saved.visualizerMode) setVisualizerMode(saved.visualizerMode)
             if (saved.eqPreset) applyEQPreset(saved.eqPreset)
             if (typeof saved.eqPreamp === 'number') setPreampGain(saved.eqPreamp)
@@ -1142,6 +1247,7 @@ export default function App() {
             }
             if (typeof saved.eqBalance === 'number') setBalance(saved.eqBalance)
             if (saved.lyricAnimation) setLyricAnimation(saved.lyricAnimation)
+            if (saved.lyricWordSync) setLyricWordSync(saved.lyricWordSync)
             if (typeof saved.discordEnabled === 'boolean') setDiscordEnabled(saved.discordEnabled)
             if (saved.playCounts && typeof saved.playCounts === 'object')
               setPlayCounts((prev) => ({ ...prev, ...saved.playCounts }))
@@ -1189,6 +1295,13 @@ export default function App() {
       document.head.appendChild(link)
     }
   }, [])
+
+  // ---- Likes ----
+  const toggleLikeTrack = (trackId: string) => {
+    setLikedTrackIds((prev) =>
+      prev.includes(trackId) ? prev.filter((id) => id !== trackId) : [...prev, trackId]
+    )
+  }
 
   // ---- Keyboard Shortcuts ----
   const toggleLyricsView = () => {
@@ -1248,6 +1361,15 @@ export default function App() {
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault()
         toggleMute()
+      } else if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault()
+        seekRelative(-10)
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault()
+        seekRelative(10)
+      } else if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault()
+        if (currentTrack) toggleLikeTrack(currentTrack.id)
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault()
         if (fsHideTimerRef.current) {
@@ -1289,6 +1411,7 @@ export default function App() {
     contextMenu,
     lyricsOptionsOpen,
     showOnboarding,
+    currentTrack,
     isMini
   ])
 
@@ -1301,6 +1424,9 @@ export default function App() {
       animId,
       libraryLayout,
       libraryDensity,
+      librarySortKey: librarySort.key,
+      librarySortDir: librarySort.dir,
+      showRemaining,
       volume: sliderVal,
       shuffleOn,
       repeatMode,
@@ -1326,6 +1452,7 @@ export default function App() {
       lyricDimLevel,
       lyricActiveScale,
       lyricUppercase,
+      lyricWordSync,
       visualizerMode,
       eqPreset: currentEQPreset,
       eqPreamp,
@@ -1351,6 +1478,8 @@ export default function App() {
       animId,
       libraryLayout,
       libraryDensity,
+      librarySort,
+      showRemaining,
       sliderVal,
       shuffleOn,
       repeatMode,
@@ -1376,6 +1505,7 @@ export default function App() {
       lyricDimLevel,
       lyricActiveScale,
       lyricUppercase,
+      lyricWordSync,
       visualizerMode,
       currentEQPreset,
       eqPreamp,
@@ -1434,6 +1564,8 @@ export default function App() {
     animId,
     libraryLayout,
     libraryDensity,
+    librarySort,
+    showRemaining,
     sliderVal,
     shuffleOn,
     repeatMode,
@@ -1459,6 +1591,7 @@ export default function App() {
     lyricDimLevel,
     lyricActiveScale,
     lyricUppercase,
+    lyricWordSync,
     visualizerMode,
     currentEQPreset,
     eqPreamp,
@@ -1622,12 +1755,6 @@ export default function App() {
     return `${Math.floor(secs / 60)}:${Math.floor(secs % 60)
       .toString()
       .padStart(2, '0')}`
-  }
-
-  const toggleLikeTrack = (trackId: string) => {
-    setLikedTrackIds((prev) =>
-      prev.includes(trackId) ? prev.filter((id) => id !== trackId) : [...prev, trackId]
-    )
   }
 
   // ---- Upload / Import ----
@@ -2132,6 +2259,50 @@ export default function App() {
     setCurrentIndex(null)
   }
 
+  // QoL: shuffle upcoming queue (Fisher-Yates, keeps current track pinned at top).
+  const handleShuffleQueue = useCallback(() => {
+    if (currentIndex === null || queue.length <= 1) {
+      addToast('Nothing to shuffle', 'Queue needs at least 2 tracks', 'info')
+      return
+    }
+    setQueue((prev) => {
+      const head = prev.slice(0, currentIndex + 1)
+      const tail = prev.slice(currentIndex + 1)
+      for (let i = tail.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[tail[i], tail[j]] = [tail[j], tail[i]]
+      }
+      return [...head, ...tail]
+    })
+    addToast('Queue shuffled', 'Upcoming tracks reordered', 'success')
+  }, [currentIndex, queue.length, addToast])
+
+  // QoL: remove duplicate tracks from the queue (keeps first occurrence).
+  const handleDedupeQueue = useCallback(() => {
+    if (queue.length <= 1) return
+    const seen = new Set<string>()
+    const currentId: string | null =
+      currentIndex !== null ? (queue[currentIndex]?.id ?? null) : null
+    const next: Track[] = []
+    for (const t of queue) {
+      const k = `${t.id}::${t.title}::${t.artist}`
+      if (seen.has(k)) continue
+      seen.add(k)
+      next.push(t)
+    }
+    const removed = queue.length - next.length
+    if (removed === 0) {
+      addToast('No duplicates', 'Queue is already clean', 'info')
+      return
+    }
+    setQueue(next)
+    if (currentId) {
+      const idx = next.findIndex((t) => t.id === currentId)
+      setCurrentIndex(idx >= 0 ? idx : null)
+    }
+    addToast(`Removed ${removed} duplicate${removed === 1 ? '' : 's'}`, undefined, 'success')
+  }, [queue, currentIndex, addToast])
+
   // ---- Scrubber seek ----
   const handleSeekAt = (
     e: React.MouseEvent<HTMLDivElement>,
@@ -2214,6 +2385,7 @@ export default function App() {
       addToast('Added to queue', track.title, 'info')
     },
     onEditTags: (track) => setTagEditorTrack(track),
+    onToggleLike: (track) => toggleLikeTrack(track.id),
     onRevealInExplorer: (track) =>
       window.api?.revealInExplorer && window.api.revealInExplorer(track.filepath),
     onRemoveFromPlaylist: selectedPlaylistId
@@ -2234,6 +2406,9 @@ export default function App() {
     setAnimId('modern')
     setLibraryLayout('table')
     setLibraryDensity('comfortable')
+    setLibrarySort({ key: 'added_at', dir: 'desc' })
+    setLikedOnly(false)
+    setShowRemaining(false)
     handleVolumeChange(0.8)
     setShuffleOn(false)
     setRepeatMode('off')
@@ -2256,7 +2431,9 @@ export default function App() {
     setLyricDimLevel(0.3)
     setLyricActiveScale(1.04)
     setLyricUppercase(false)
+    setLyricBracketsSmall(false)
     setLyricAnimation('scale')
+    setLyricWordSync('auto')
     setDiscordEnabled(false)
     setVisualizerMode('off')
     setSongTransitionEnabled(false)
@@ -2334,16 +2511,55 @@ export default function App() {
   }, [view])
 
   // ---- Filtered / sorted data ----
-  const filteredLibrary = useMemo(
-    () =>
-      library.filter(
-        (t) =>
-          t.title.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-          t.artist.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-          t.album.toLowerCase().includes(deferredSearchQuery.toLowerCase())
-      ),
-    [library, deferredSearchQuery]
-  )
+  // QoL: text search + liked-only filter + persisted column sort.
+  const filteredLibrary = useMemo(() => {
+    const q = deferredSearchQuery.toLowerCase()
+    const out = library.filter((t) => {
+      if (likedOnly && !likedTrackIds.includes(t.id)) return false
+      if (!q) return true
+      return (
+        t.title.toLowerCase().includes(q) ||
+        t.artist.toLowerCase().includes(q) ||
+        t.album.toLowerCase().includes(q)
+      )
+    })
+    const dir = librarySort.dir === 'asc' ? 1 : -1
+    const byStr = (a: string, b: string): number =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }) * dir
+    out.sort((a, b) => {
+      switch (librarySort.key) {
+        case 'title':
+          return byStr(a.title || '', b.title || '')
+        case 'artist':
+          return byStr(a.artist || '', b.artist || '') || byStr(a.album || '', b.album || '')
+        case 'album':
+          return byStr(a.album || '', b.album || '') || byStr(a.title || '', b.title || '')
+        case 'duration':
+          return ((a.duration || 0) - (b.duration || 0)) * dir
+        case 'added_at':
+        default:
+          return ((a.added_at || 0) - (b.added_at || 0)) * dir
+      }
+    })
+    return out
+  }, [library, deferredSearchQuery, likedOnly, likedTrackIds, librarySort])
+
+  // QoL: library footer stats — tracks / artists / total runtime of current view.
+  const libraryStats = useMemo(() => {
+    const artists = new Set<string>()
+    let secs = 0
+    for (const t of filteredLibrary) {
+      artists.add((t.artist || 'Unknown Artist').toLowerCase())
+      secs += t.duration || 0
+    }
+    return { tracks: filteredLibrary.length, artists: artists.size, secs }
+  }, [filteredLibrary])
+
+  const cycleLibrarySort = (key: LibrarySortField): void => {
+    setLibrarySort((s) =>
+      s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+    )
+  }
 
   // ---- Home screen aggregates ----
   const homeTrackById = useMemo(() => new Map(library.map((t) => [t.id, t])), [library])
@@ -2510,12 +2726,7 @@ export default function App() {
     `${t.artist || 'Unknown Artist'}│${t.album || 'Unknown Album'}`
 
   const libraryGroups = useMemo(() => {
-    const filtered = orderedTracks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-        t.artist.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-        t.album.toLowerCase().includes(deferredSearchQuery.toLowerCase())
-    )
+    const filtered = filteredLibrary
     const map = new Map<string, { key: string; artist: string; album: string; tracks: Track[] }>()
     for (const t of filtered) {
       const k = groupKeyOf(t)
@@ -2530,7 +2741,7 @@ export default function App() {
       map.get(k)!.tracks.push(t)
     }
     return Array.from(map.values())
-  }, [orderedTracks, deferredSearchQuery])
+  }, [filteredLibrary])
 
   const handleGroupDrop = useCallback(
     (targetKey: string) => {
@@ -2729,6 +2940,7 @@ export default function App() {
           fromPlaylist={contextMenu.fromPlaylist}
           onPlay={contextMenu.onPlay}
           handlers={trackMenuHandlers}
+          isLiked={likedTrackIds.includes(contextMenu.track.id)}
           onClose={() => setContextMenu(null)}
         />
       )}
@@ -3573,7 +3785,7 @@ export default function App() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   className="btn btn-ghost btn-sm btn-pill"
                   onClick={handlePlayAllLibrary}
@@ -3590,6 +3802,40 @@ export default function App() {
                 >
                   <Shuffle size={13} /> Shuffle
                 </button>
+                <button
+                  className="btn btn-ghost btn-sm btn-pill"
+                  data-active={likedOnly}
+                  onClick={() => setLikedOnly((v) => !v)}
+                  title={likedOnly ? 'Show all tracks' : 'Show liked tracks only'}
+                  style={
+                    likedOnly ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined
+                  }
+                >
+                  <Heart size={13} fill={likedOnly ? 'currentColor' : 'none'} />{' '}
+                  {likedOnly ? 'Liked ✓' : 'Liked'}
+                </button>
+                <div className="seg" title="Sort library">
+                  {(
+                    [
+                      ['title', 'Title'],
+                      ['artist', 'Artist'],
+                      ['album', 'Album'],
+                      ['duration', 'Time'],
+                      ['added_at', 'Added']
+                    ] as [LibrarySortField, string][]
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      data-active={librarySort.key === key}
+                      onClick={() => cycleLibrarySort(key)}
+                      title={`Sort by ${label}${librarySort.key === key ? (librarySort.dir === 'asc' ? ' (ascending — click to flip)' : ' (descending — click to flip)') : ''}`}
+                      style={{ padding: '7px 10px' }}
+                    >
+                      {label}
+                      {librarySort.key === key && (librarySort.dir === 'asc' ? ' ↑' : ' ↓')}
+                    </button>
+                  ))}
+                </div>
                 {libraryLayout === 'table' && (
                   <div className="seg">
                     <button
@@ -3656,38 +3902,83 @@ export default function App() {
                 )}
               </div>
             ) : libraryLayout === 'table' ? (
-              <table className="track-table" data-density={libraryDensity}>
-                <thead>
-                  <tr className="track-head-row">
-                    <span>#</span>
-                    <span>TITLE</span>
-                    <span>ARTIST</span>
-                    <span>ALBUM</span>
-                    <span>TIME</span>
-                    <span>ADD TO PLAYLIST</span>
-                    <span />
-                    <span />
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLibrary.map((track, idx) => (
-                    <LibraryTableRow
-                      key={track.id}
-                      track={track}
-                      index={idx}
-                      list={filteredLibrary}
-                      isActive={currentTrack?.id === track.id}
-                      isPlaying={isPlaying}
-                      playlists={playlists}
-                      onLoad={loadAndPlayIndex}
-                      onContextMenu={handleRowContextMenu}
-                      onTagEdit={setTagEditorTrack}
-                      onDelete={handleDeleteTrack}
-                      onAddTrack={handleAddTrackToPlaylist}
-                    />
-                  ))}
-                </tbody>
-              </table>
+              <>
+                <table className="track-table" data-density={libraryDensity}>
+                  <thead>
+                    <tr className="track-head-row">
+                      <span>#</span>
+                      {(
+                        [
+                          ['title', 'TITLE'],
+                          ['artist', 'ARTIST'],
+                          ['album', 'ALBUM'],
+                          ['duration', 'TIME']
+                        ] as [LibrarySortField, string][]
+                      ).map(([key, label]) => (
+                        <span
+                          key={key}
+                          onClick={() => cycleLibrarySort(key)}
+                          title={`Sort by ${label}`}
+                          style={{ cursor: 'pointer', userSelect: 'none' }}
+                        >
+                          {label}
+                          {librarySort.key === key && (librarySort.dir === 'asc' ? ' ↑' : ' ↓')}
+                        </span>
+                      ))}
+                      <span>ADD TO PLAYLIST</span>
+                      <span />
+                      <span />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLibrary.map((track, idx) => (
+                      <LibraryTableRow
+                        key={track.id}
+                        track={track}
+                        index={idx}
+                        list={filteredLibrary}
+                        isActive={currentTrack?.id === track.id}
+                        isPlaying={isPlaying}
+                        playlists={playlists}
+                        onLoad={loadAndPlayIndex}
+                        onContextMenu={handleRowContextMenu}
+                        onTagEdit={setTagEditorTrack}
+                        onDelete={handleDeleteTrack}
+                        onAddTrack={handleAddTrackToPlaylist}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+                {filteredLibrary.length > 0 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      marginTop: 12,
+                      fontSize: 11.5,
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    <ListFilter size={13} />
+                    <span>
+                      {libraryStats.tracks} track{libraryStats.tracks === 1 ? '' : 's'} ·{' '}
+                      {libraryStats.artists} artist{libraryStats.artists === 1 ? '' : 's'} ·{' '}
+                      {formatTime(libraryStats.secs)} total
+                    </span>
+                    {likedOnly && (
+                      <button
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => setLikedOnly(false)}
+                        style={{ padding: '3px 10px', fontSize: 11 }}
+                      >
+                        Clear liked filter <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             ) : libraryLayout === 'group' ? (
               <div className="library-groups">
                 {libraryGroups.map((g) => {
@@ -4149,16 +4440,38 @@ export default function App() {
               }}
             >
               <p className="eyebrow" style={{ margin: 0 }}>
-                Play Queue ({queue.length})
+                Play Queue ({queue.length}
+                {queue.length > 0 && currentIndex !== null
+                  ? ` · ${currentIndex + 1}/${queue.length}`
+                  : ''}
+                )
               </p>
               {queue.length > 0 && (
-                <button
-                  className="btn btn-ghost"
-                  onClick={handleClearQueue}
-                  style={{ padding: '6px 12px', fontSize: 11 }}
-                >
-                  Clear Queue
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={handleShuffleQueue}
+                    title="Shuffle upcoming tracks (keeps current)"
+                    style={{ padding: '6px 12px', fontSize: 11 }}
+                  >
+                    <Shuffle size={12} /> Shuffle up next
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={handleDedupeQueue}
+                    title="Remove duplicate tracks from queue"
+                    style={{ padding: '6px 12px', fontSize: 11 }}
+                  >
+                    Dedupe
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={handleClearQueue}
+                    style={{ padding: '6px 12px', fontSize: 11 }}
+                  >
+                    Clear Queue
+                  </button>
+                </div>
               )}
             </div>
             {queue.length === 0 ? (
@@ -4229,16 +4542,14 @@ export default function App() {
                                   {offsetMs >= 0 ? `+${offsetMs}ms` : `${offsetMs}ms`}
                                 </span>
                                 <button
-                                  className="btn-plain"
-                                  style={{ padding: '4px 8px', fontSize: 11 }}
+                                  className="btn-plain btn-xs"
                                   onClick={() => handleLyricOffset(-500)}
                                   title="Shift lyrics back 0.5s"
                                 >
                                   −0.5s
                                 </button>
                                 <button
-                                  className="btn-plain"
-                                  style={{ padding: '4px 8px', fontSize: 11 }}
+                                  className="btn-plain btn-xs"
                                   onClick={() => handleLyricOffset(500)}
                                   title="Shift lyrics forward 0.5s"
                                 >
@@ -4246,8 +4557,7 @@ export default function App() {
                                 </button>
                                 {offsetMs !== 0 && (
                                   <button
-                                    className="btn-plain"
-                                    style={{ padding: '4px 8px', fontSize: 11 }}
+                                    className="btn-plain btn-xs"
                                     onClick={handleLyricOffsetReset}
                                   >
                                     Reset
@@ -4256,6 +4566,24 @@ export default function App() {
                               </div>
                             </>
                           )}
+                          {/* Word-by-word (karaoke) sync */}
+                          <div className="pl-opt-label">
+                            Word-by-word
+                            {hasWordTimings ? ' · word tags found' : ''}
+                          </div>
+                          <div className="lyrics-options-row">
+                            {LYRIC_WORD_SYNC_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.id}
+                                className="pl-opt-chip"
+                                data-active={lyricWordSync === opt.id}
+                                onClick={() => setLyricWordSync(opt.id)}
+                                title={opt.hint}
+                              >
+                                {opt.name}
+                              </button>
+                            ))}
+                          </div>
                           <div className="pl-opt-label">Lyrics</div>
                           <div
                             className="pl-opt-row"
@@ -4314,6 +4642,9 @@ export default function App() {
                       lyricDimLevel={lyricDimLevel}
                       lyricActiveScale={lyricActiveScale}
                       lyricUppercase={lyricUppercase}
+                      lyricBracketsSmall={lyricBracketsSmall}
+                      wordSyncMode={lyricWordSync}
+                      wordState={i === activeLyricIndex ? activeWordState : null}
                       variant="normal"
                       onSeek={seek}
                     />
@@ -4400,12 +4731,45 @@ export default function App() {
             </aside>
             <div className="settings-content">
               <h2 className="settings-page-title">Settings</h2>
+              <div 
+  className="settings-search"
+  style={{
+    backgroundColor: 'rgba(255, 255, 255, 0)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    borderRadius: '8px', 
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  }}
+>
+  <Search size={16} />
+  <input
+    ref={settingsSearchRef}
+    type="text"
+    placeholder="Search settings..."
+    value={settingsSearch}
+    onChange={(e) => setSettingsSearch(e.target.value)}
+    onFocus={() => settingsSearchRef.current?.select()}
+    className="field"
+    style={{ width: 'min(340px, 90%)', padding: '5px 8px 5px 12px', background: 'transparent' }} // Set input background to transparent
+  />
+  {settingsSearch.trim() && (
+    <button
+      className="btn-plain"
+      onClick={() => setSettingsSearch('')}
+      title="Clear search"
+    >
+      <X size={14} />
+    </button>
+  )}
+</div>
               <section id="settings-lyrics" className="settings-cat">
                 <p className="eyebrow">Lyrics</p>
                 <div className="settings-section">
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Align lyrics</div>
+                      <div className="settings-row-title">Align</div>
                       <div className="settings-row-desc">Left, center, or right.</div>
                     </div>
                     <div className="seg">
@@ -4431,7 +4795,7 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Lyric animation</div>
+                      <div className="settings-row-title">Animation</div>
                       <div className="settings-row-desc">Effect on the current line.</div>
                     </div>
                     <div className="seg">
@@ -4448,7 +4812,28 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Font size</div>
+                      <div className="settings-row-title">Karaoke words</div>
+                      <div className="settings-row-desc">
+                        Word-by-word highlighting. Word tags come from enhanced LRC; Estimate works
+                        on plain synced lyrics.
+                      </div>
+                    </div>
+                    <div className="seg">
+                      {LYRIC_WORD_SYNC_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          data-active={lyricWordSync === opt.id}
+                          onClick={() => setLyricWordSync(opt.id)}
+                          title={opt.hint}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="settings-row">
+                    <div className="settings-row-text">
+                      <div className="settings-row-title">Text size</div>
                       <div className="settings-row-desc">
                         Size of the lyric text ({lyricFontSize}px).
                       </div>
@@ -4464,9 +4849,9 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Active line size</div>
+                      <div className="settings-row-title">Current line</div>
                       <div className="settings-row-desc">
-                        How much larger the current line is ({lyricActiveScale.toFixed(2)}×).
+                        How much larger the active line is ({lyricActiveScale.toFixed(2)}×).
                       </div>
                     </div>
                     <NiceSlider
@@ -4496,7 +4881,7 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Blur other lines</div>
+                      <div className="settings-row-title">Blur inactive</div>
                       <div className="settings-row-desc">
                         Blur on past and upcoming lines ({lyricInactiveBlur}px).
                       </div>
@@ -4512,7 +4897,7 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Dim other lines</div>
+                      <div className="settings-row-title">Dim inactive</div>
                       <div className="settings-row-desc">
                         Brightness of past and upcoming lines ({Math.round(lyricDimLevel * 100)}%).
                       </div>
@@ -4528,7 +4913,7 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Uppercase lyrics</div>
+                      <div className="settings-row-title">Caps lock</div>
                       <div className="settings-row-desc">Show every line in capitals.</div>
                     </div>
                     <button className="switch-label" onClick={() => setLyricUppercase((v) => !v)}>
@@ -4540,7 +4925,22 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Fetch lyrics online</div>
+                      <div className="settings-row-title">Brackets smaller</div>
+                      <div className="settings-row-desc">Make text inside (brackets) smaller.</div>
+                    </div>
+                    <button
+                      className="switch-label"
+                      onClick={() => setLyricBracketsSmall((v) => !v)}
+                    >
+                      <span className="switch-track" data-active={lyricBracketsSmall}>
+                        <span className="switch-knob" />
+                      </span>
+                      {lyricBracketsSmall ? 'On' : 'Off'}
+                    </button>
+                  </div>
+                  <div className="settings-row">
+                    <div className="settings-row-text">
+                      <div className="settings-row-title">Fetch online</div>
                       <div className="settings-row-desc">
                         Look up missing lyrics on LRCLIB automatically.
                       </div>
@@ -4577,7 +4977,7 @@ export default function App() {
                           weight: 900
                         },
                         {
-                          text: 'Well, I found a girl, beautiful and sweet',
+                          text: 'Well, I found a (beautiful) girl',
                           scale: 0.96,
                           blur: lyricInactiveBlur,
                           opacity: lyricDimLevel,
@@ -4606,7 +5006,46 @@ export default function App() {
                             maxWidth: `${100 / lyricActiveScale}%`
                           }}
                         >
-                          {l.text}
+                          {i === 1
+                            ? (
+                                previewWordTokens(l.text) ?? [
+                                  { text: l.text, state: 'sung' as const }
+                                ]
+                              ).map((w, wi) => (
+                                <span
+                                  key={wi}
+                                  style={{
+                                    color:
+                                      w.state === 'active'
+                                        ? 'var(--accent)'
+                                        : w.state === 'upcoming'
+                                          ? 'var(--text-secondary)'
+                                          : 'var(--text-primary)',
+                                    // Mirror the real karaoke pill (just static here).
+                                    ...(w.state === 'active'
+                                      ? {
+                                          background:
+                                            'color-mix(in srgb, var(--accent) 18%, transparent)',
+                                          borderRadius: '0.4em',
+                                          padding: '0 0.12em'
+                                        }
+                                      : {})
+                                  }}
+                                >
+                                  {w.text}
+                                </span>
+                              ))
+                            : lyricBracketsSmall
+                              ? l.text.split(/\(([^)]*)\)/g).map((part, pi) =>
+                                  pi % 2 === 1 ? (
+                                    <span key={`br-${pi}`} className="lyric-bracket">
+                                      {`(${part})`}
+                                    </span>
+                                  ) : (
+                                    <span key={`tx-${pi}`}>{part}</span>
+                                  )
+                                )
+                              : l.text}
                         </div>
                       ))}
                     </div>
@@ -4620,7 +5059,7 @@ export default function App() {
                   <div className="settings-row">
                     <div className="settings-row-text">
                       <div className="settings-row-title">Equalizer</div>
-                      <div className="settings-row-desc">10 bands with presets. Shortcut: E</div>
+                      <div className="settings-row-desc">10-band EQ with presets. Shortcut: E</div>
                     </div>
                     <button className="btn btn-ghost" onClick={() => setIsEqOpen(true)}>
                       <Sliders size={14} /> Open Full EQ
@@ -4729,7 +5168,7 @@ export default function App() {
                 <div className="settings-section">
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Audio visualizer</div>
+                      <div className="settings-row-title">Visualizer</div>
                       <div className="settings-row-desc">
                         Bars, wave, or radial — shown in the player bar and fullscreen.
                       </div>
@@ -4771,8 +5210,7 @@ export default function App() {
                     <div className="settings-row-text">
                       <div className="settings-row-title">Layout</div>
                       <div className="settings-row-desc">
-                        Full shows lyrics, and info, while cover only shows just the artwork or
-                        video.
+                        Full shows lyrics and info, Cover only shows artwork or video.
                       </div>
                     </div>
                     <div className="seg">
@@ -4792,9 +5230,9 @@ export default function App() {
                   </div>
                   <div className="settings-row">
                     <div className="settings-row-text">
-                      <div className="settings-row-title">Ambience in fullscreen</div>
+                      <div className="settings-row-title">Fullscreen ambience</div>
                       <div className="settings-row-desc">
-                        Show the ambient background on the fullscreen view.
+                        Show the ambient background in fullscreen view.
                       </div>
                     </div>
                     <button
@@ -4815,7 +5253,7 @@ export default function App() {
                     <div className="settings-row-text">
                       <div className="settings-row-title">Enable ambience</div>
                       <div className="settings-row-desc">
-                        Beautiful background from the current playing cover.
+                        Background from the current playing cover.
                       </div>
                     </div>
                     <button className="switch-label" onClick={() => setFluidBgEnabled((v) => !v)}>
@@ -4879,7 +5317,7 @@ export default function App() {
                         <div className="settings-row-text">
                           <div className="settings-row-title">Intensity</div>
                           <div className="settings-row-desc">
-                            How strong the colors are ({Math.round(fluidBgOpacity * 100)}%).
+                            Color vibrancy ({Math.round(fluidBgOpacity * 100)}%).
                           </div>
                         </div>
                         <NiceSlider
@@ -4969,7 +5407,7 @@ export default function App() {
                     <div className="settings-row-text">
                       <div className="settings-row-title">Updates</div>
                       <div className="settings-row-desc">
-                        omus checks for new versions at launch and installs them for you.
+                        omus checks for new versions at launch.
                       </div>
                     </div>
                     <button
@@ -4990,7 +5428,7 @@ export default function App() {
                     <div className="settings-row-text">
                       <div className="settings-row-title">Search bar</div>
                       <div className="settings-row-desc">
-                        Show the search field in the title bar (Ctrl + K).
+                        Show search in the title bar (Ctrl + K).
                       </div>
                     </div>
                     <button
@@ -5223,7 +5661,7 @@ export default function App() {
                     <div className="settings-row-text">
                       <div className="settings-row-title">Resume on launch</div>
                       <div className="settings-row-desc">
-                        Reload the last track and position when omus starts.
+                        Reload the last track and position on start.
                       </div>
                     </div>
                     <button className="switch-label" onClick={() => setResumePlayback((v) => !v)}>
@@ -5236,7 +5674,7 @@ export default function App() {
                     <div className="settings-row-text">
                       <div className="settings-row-title">Crossfade</div>
                       <div className="settings-row-desc">
-                        Fade the end of a track into the next one.
+                        Fade the end of a track into the next.
                       </div>
                     </div>
                     <button
@@ -5377,6 +5815,8 @@ export default function App() {
                       ['Space', 'Play / pause'],
                       ['L', 'Lyrics'],
                       ['← / →', 'Seek ±5s'],
+                      ['J / K', 'Seek -10s / +10s'],
+                      ['H', 'Like current track'],
                       ['Shift + ← / →', 'Previous / next'],
                       ['Q', 'Queue'],
                       ['M', 'Mute'],
@@ -5419,8 +5859,7 @@ export default function App() {
                       marginBottom: 12
                     }}
                   >
-                    Pack every setting in omus into one tiny .ocfg file. You can import any .ocfg
-                    file, use it as a backup, or send it to anyone.
+                    Pack every setting into one .ocfg file. Use it as a backup or send it to anyone.
                   </span>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
@@ -5466,11 +5905,7 @@ export default function App() {
                 </div>
 
                 <div className="settings-section">
-                  <button
-                    className="btn btn-ghost"
-                    onClick={handleResetSettings}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                  >
+                  <button className="btn btn-ghost" onClick={handleResetSettings}>
                     <RotateCcw size={14} /> Reset to defaults
                   </button>
                   <span
@@ -5649,7 +6084,20 @@ export default function App() {
                 </div>
               )}
             </div>
-            <span className="sp-time">{formatTime(duration)}</span>
+            <span
+              className="sp-time"
+              onClick={() => setShowRemaining((v) => !v)}
+              title={
+                showRemaining
+                  ? 'Show total duration (click for total)'
+                  : 'Show time remaining (click for remaining)'
+              }
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+            >
+              {showRemaining
+                ? `-${formatTime(Math.max(0, duration - currentTime))}`
+                : formatTime(duration)}
+            </span>
           </div>
         </div>
 
@@ -5893,6 +6341,9 @@ export default function App() {
                       lyricDimLevel={lyricDimLevel}
                       lyricActiveScale={lyricActiveScale}
                       lyricUppercase={lyricUppercase}
+                      lyricBracketsSmall={lyricBracketsSmall}
+                      wordSyncMode={lyricWordSync}
+                      wordState={i === activeLyricIndex ? activeWordState : null}
                       variant="fullscreen"
                       onSeek={seek}
                     />
@@ -6094,7 +6545,7 @@ export default function App() {
                       <Plus size={14} /> Add Songs
                     </button>
                     <button
-                      className="btn btn-ghost"
+                      className="btn btn-ghost btn-sm"
                       onClick={handleFolderSelect}
                       disabled={isParsing}
                     >

@@ -3,7 +3,7 @@
 > **READ THIS FIRST for any task in this repo.** This single file documents every folder,
 > system, data flow and convention in the `omus` project. It exists to save tokens: future
 > agents should read this file (and then only the specific source files they need) instead of
-> re-exploring the whole tree. Last verified against commit `2b66447` (v1.3.0).
+> re-exploring the whole tree. Last verified against commit `99c705e` (v1.5.0).
 
 ---
 
@@ -12,7 +12,9 @@
 A fast, lightweight **offline desktop music player** for local media collections (MP3, FLAC, WAV,
 M4A, OGG, AAC, WMA, ALAC, AIFF **plus music-video containers** MP4/WEBM/MKV/MOV/AVI/FLV/WMV/OGV/
 MPG/3GP/TS...). No accounts, no cloud, no tracking. Features: synced LRC lyrics w/ online lookup
-(LRCLIB), 10-band Web Audio equalizer with presets, seamless crossfade transitions, sleep timer,
+(LRCLIB) **including word-by-word (karaoke) highlighting** (enhanced/A2 LRC word tags, plus an
+estimate mode for line-synced lyrics), 10-band Web Audio equalizer with presets, seamless
+crossfade transitions, sleep timer,
 live visualizers, library import/tag editing, playlist management (+ M3U import/export), custom
 themes/fonts/animations, fluid ambient backgrounds, fullscreen now-playing (incl. video mirror),
 Discord Rich Presence, OS media keys, GitHub release checker, drag-and-drop import,
@@ -328,7 +330,7 @@ Single `export default function App()` containing ALL state, handlers and views.
 previousView, searchQuery/detailSearch, library layout/density/order, collapsible+resizable left
 rail, playback (shuffle/repeat/shuffleHistory), likedTrackIds, settings (~30 persisted knobs:
 confirmBeforeDelete, resumePlayback, autoFetchLyrics, crossfade transition, fluid-bg params,
-fullscreen mode, lyric styling, EQ, visualizer, discordEnabled…), play history (playCounts +
+fullscreen mode, lyric styling + word-sync mode, EQ, visualizer, discordEnabled…), play history (playCounts +
 recentlyPlayed), fluid bg prefs, fullscreen prefs, modals (showCoverModal, isFullscreenCover,
 isUploadModalOpen, isEqOpen, isSleepTimerOpen, tagEditorTrack, isManualLyricsOpen, contextMenu,
 lyricsOptionsOpen…), upload flow (pendingUploads, editingIndex), playlist editing, zoom.
@@ -394,13 +396,30 @@ startSleepTimer, cancelSleepTimer, setSongTransition`.
 
 ### `useLyrics.ts`
 
-- Parses raw LRC text → sorted `LyricLine[] {time, text}`; supports multi `[mm:ss.xxx]` tags per
+- **Pure, exported helpers** (unit-tested in `tests/unit/lyrics.test.ts`, no React needed):
+  `parseLrc(raw, offsetMs)` · `parseWordTags()` · `splitLyricWords()` · `getLineWordTokens(line, allowEstimate)`
+  · `getActiveWordState(lines, lineIndex, currentTime, allowEstimate)`.
+- `parseLrc(raw, offsetMs)` → sorted `LyricLine[]`; supports multi `[mm:ss.xxx]` tags per
   line, `[offset:±ms]` tag (overridden by user-set manual offset), skips ID tags
   (`[ar:] [ti:] [al:] [by:] [length:] [re:] [ve:]`); **plain-text fallback** spreads lines 4s apart.
-- `fetchLyricsFromOnline(track)`: LRCLIB — exact `/api/get` then fallback `/api/search?q=`; sends
+  Every line also gets an `endTime` (next line start, else `time + 4s`).
+- **Word-by-word (enhanced / A2 LRC)**: inline `<mm:ss.xx>` tags in front of each word
+  (`[00:12.00]<00:12.00>Hel<00:12.40>lo <00:12.90>world`) are parsed into `line.words`
+  (`{time,text}[]`, whitespace kept glued to the previous word so the line rebuilds byte-for-byte);
+  `offsetMs` applies to word times too. A line whose only tags are word tags derives its own
+  `time` from the first word tag; lines with tags but no text are dropped.
+- `getLineWordTokens(line, allowEstimate)`: real word timings when present, otherwise (Estimate
+  mode only) the words spread evenly over `min(gap, 10s, max(1.2s, words × 0.55s))`; the final word
+  never fills for more than 2.5s. Whitespace tokens have `index: -1` (never highlighted).
+  `getActiveWordState()` returns `{index, progress}` for the word being sung.
+- `fetchLyricsFromOnline(track)`: LRCLIB (line-level only — it has no word timings) — exact
+  `/api/get` then fallback `/api/search?q=`; sends
   `Lrclib-Client: omus v1.0.0 (https://github.com/omus-music)` header. Network or CSP failures
   surface as lyricStatus strings ("Searching LRCLIB...", "Lyrics Synced", "No lyrics found", …).
-- `getActiveLyricIndex(currentTime)`, `adjustOffset(deltaMs)`, `resetOffset()`.
+- Hook return: `rawLyrics/setRawLyrics`, `parsedLyrics`, `hasWordTimings`, `offsetMs/setOffsetMs`,
+  `adjustOffset`, `resetOffset`, `getActiveLyricIndex(currentTime)`,
+  `getWordState(lineIndex, currentTime, allowEstimate)`, `fetchLyricsFromOnline`, `isFetchingLyrics`,
+  `lyricStatus`.
 
 ### `useToast.ts`
 
@@ -410,7 +429,9 @@ startSleepTimer, cancelSleepTimer, setSongTransition`.
 
 `Track` (id=filepath, filepath, title, artist, album, duration, cover, lyrics, lyrics_offset?,
 added_at?) · `PendingTrack` (Track minus id/filepath, + sourcePath, filename) · `Playlist`
-(cover_type: auto|gradient|image, cover_image, cover_gradient) · `LyricLine` · `Theme` (bg/
+(cover_type: auto|gradient|image, cover_image, cover_gradient) · `LyricLine` (time/text/
+`words?`/`endTime?`) · `LyricWord` ({time,text}) · `LyricWordSyncMode` (off|auto|interpolate) ·
+`Theme` (bg/
 sidebarBg/cardBg/textPrimary/textSecondary/accent/customCss) · `GoogleFontPreset` ·
 `AnimationPreset` (uiTransition, scrollBehavior, globalCss) · `EQBand`/`EQPreset` ·
 `VisualizerMode = bars|wave|radial|off` · `LyricAnimationType = scale|slide|glow|fade|wave` ·
@@ -418,25 +439,25 @@ sidebarBg/cardBg/textPrimary/textSecondary/accent/customCss) · `GoogleFontPrese
 
 ## 12. Components (per-file purpose)
 
-| Component                      | Purpose                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `GlobalSearch.tsx`             | Ctrl/Cmd+K overlay; sections Tracks/Artists/Albums/Playlists; keyboard-navigable; album separator matches App.tsx (U+2502 `│`)      |
-| `TitleBar.tsx`                 | frameless **Windows** title bar: minimize/max/close, double-click maximize, drag region; subscribes `window:maximized`              |
-| `LyricLine.tsx`                | memoized lyric row; anim modes via transform/opacity/color only (compositor-safe, no animated blur)                                 |
-| `AudioVisualizer.tsx`          | canvas visualizer (bars/wave/radial); reads AnalyserNode FFT; resolves CSS `var(--accent)` for canvas colors; idle mode when paused |
-| `TrackRows.tsx`                | memoized `LibraryTableRow` / `LibraryCardRow` / `LibraryGroupRow` / `QueueCard` (pure render, callbacks passed down)                |
-| `ErrorScreen.tsx`              | error + stack + Copy details (used by ErrorBoundary)                                                                                |
-| `LoadingScreen.tsx`            | branded startup screen (fixed overlay)                                                                                              |
-| `Versions.tsx`                 | tiny Electron/Chromium/Node version line (scaffold leftover)                                                                        |
-| `Equalizer/EqualizerModal.tsx` | 10-band sliders + presets, preamp, balance                                                                                          |
-| `Modals/AboutModal.tsx`        | about/versions/credits                                                                                                              |
-| `Modals/ManualLyricsModal.tsx` | paste/edit LRC + fetch button                                                                                                       |
-| `Modals/SleepTimerModal.tsx`   | duration / end-of-track modes, fade toggle                                                                                          |
-| `Modals/TagEditorModal.tsx`    | edit title/artist/album/lyrics/cover                                                                                                |
-| `Shared/ContextMenu.tsx`       | generic positioned menu                                                                                                             |
-| `Shared/TrackContextMenu.tsx`  | track actions (play, add to playlist, edit, delete…)                                                                                |
-| `Shared/PlaylistCoverArt.tsx`  | auto (track covers) / gradient / image cover rendering                                                                              |
-| `Toast/ToastContainer.tsx`     | toast list renderer                                                                                                                 |
+| Component                      | Purpose                                                                                                                                                                                                                                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GlobalSearch.tsx`             | Ctrl/Cmd+K overlay; sections Tracks/Artists/Albums/Playlists; keyboard-navigable; album separator matches App.tsx (U+2502 `│`)                                                                                                                                                                             |
+| `TitleBar.tsx`                 | frameless **Windows** title bar: minimize/max/close, double-click maximize, drag region; subscribes `window:maximized`                                                                                                                                                                                     |
+| `LyricLine.tsx`                | memoized lyric row; anim modes via transform/opacity/color only (compositor-safe, no animated blur). Renders word-by-word karaoke spans (`.lyric-word[data-state]` + `--lyric-word-fill`) when the word-sync mode is on; only the ACTIVE line gets a `wordState` prop, so the 4Hz tick re-renders one line |
+| `AudioVisualizer.tsx`          | canvas visualizer (bars/wave/radial); reads AnalyserNode FFT; resolves CSS `var(--accent)` for canvas colors; idle mode when paused                                                                                                                                                                        |
+| `TrackRows.tsx`                | memoized `LibraryTableRow` / `LibraryCardRow` / `LibraryGroupRow` / `QueueCard` (pure render, callbacks passed down)                                                                                                                                                                                       |
+| `ErrorScreen.tsx`              | error + stack + Copy details (used by ErrorBoundary)                                                                                                                                                                                                                                                       |
+| `LoadingScreen.tsx`            | branded startup screen (fixed overlay)                                                                                                                                                                                                                                                                     |
+| `Versions.tsx`                 | tiny Electron/Chromium/Node version line (scaffold leftover)                                                                                                                                                                                                                                               |
+| `Equalizer/EqualizerModal.tsx` | 10-band sliders + presets, preamp, balance                                                                                                                                                                                                                                                                 |
+| `Modals/AboutModal.tsx`        | about/versions/credits                                                                                                                                                                                                                                                                                     |
+| `Modals/ManualLyricsModal.tsx` | paste/edit LRC + fetch button (documents the enhanced `<mm:ss.xx>` word-tag syntax)                                                                                                                                                                                                                        |
+| `Modals/SleepTimerModal.tsx`   | duration / end-of-track modes, fade toggle                                                                                                                                                                                                                                                                 |
+| `Modals/TagEditorModal.tsx`    | edit title/artist/album/lyrics/cover                                                                                                                                                                                                                                                                       |
+| `Shared/ContextMenu.tsx`       | generic positioned menu                                                                                                                                                                                                                                                                                    |
+| `Shared/TrackContextMenu.tsx`  | track actions (play, add to playlist, edit, delete…)                                                                                                                                                                                                                                                       |
+| `Shared/PlaylistCoverArt.tsx`  | auto (track covers) / gradient / image cover rendering                                                                                                                                                                                                                                                     |
+| `Toast/ToastContainer.tsx`     | toast list renderer                                                                                                                                                                                                                                                                                        |
 
 ## 13. Constants
 
@@ -447,7 +468,11 @@ sidebarBg/cardBg/textPrimary/textSecondary/accent/customCss) · `GoogleFontPrese
   `PL_PALETTES` + `playlistGradient(id)` (hash→gradient) + `parseGradient()`.
 - `globalCss.ts`: one big `GLOBAL_CSS` string injected as a `<style>` — **the real stylesheet**
   (theme `var()`s, keyframes, `.app-shell`, track rows/cards, modals, lyrics view, player bar,
-  fullscreen, settings, scrollbars…). Most UI classes live here, not Tailwind.
+  fullscreen, settings, scrollbars…). Most UI classes live here, not Tailwind. Contains the lyric
+  word styles: `.lyric-word` (+ `[data-state=sung|active|upcoming]`, scoped to
+  `.lyric-line[data-active="true"]`) and the top-level `@property --lyric-word-fill` registration
+  that makes the karaoke fill animate smoothly between timeupdate samples. ⚠ Never put a backtick
+  or `${` inside this template literal.
 - `media.ts`: mirrored `VIDEO_EXTS` + `isVideoFile()` (keep in sync with main/index.ts).
 
 ## 14. Data & persistence summary
@@ -510,6 +535,14 @@ isolation: isolate`, and the blur cap in `FluidBackgroundLayer` (40px). Never re
     to fit at 1320px (default window), so sleep-timer/fluid stay reachable by default.
 20. **`main.content` uses `scrollbar-gutter: stable`** — views that don't scroll keep the scrollbar
     lane, so switching views never shifts the layout horizontally.
+21. **Word-by-word lyric sync** (`lyricWordSync: 'off' | 'auto' | 'interpolate'`, in Settings →
+    Lyrics and in the lyrics view's ⚙ popup): `auto` highlights words only when the lyrics carry
+    enhanced (A2) LRC `<mm:ss.xx>` word tags, `interpolate` ("Estimate") also spreads plain
+    line-synced lyrics word by word. App passes `activeWordState` **only to the active line**
+    (a fresh object per tick — that is the one intended per-tick re-render); every other line gets
+    `null` so `memo` keeps it stable. `--lyric-word-fill` must stay registered via `@property`
+    for the intra-word fill to animate. LRCLIB never returns word timings — word tags come from
+    pasted/imported enhanced LRC (Manual Lyrics modal documents the syntax).
 
 ## 16. Build & packaging (`electron-builder.yml` + package.json `build{}`)
 
@@ -525,19 +558,20 @@ isolation: isolate`, and the blur cap in `FluidBackgroundLayer` (40px). Never re
 
 ## 17. External services (no keys in repo besides Discord ID)
 
-| Service             | Used for                                | Where                                              |
-| ------------------- | --------------------------------------- | -------------------------------------------------- |
-| LRCLIB (lrclib.net) | synced lyrics auto-fetch                | `useLyrics.ts` (CSP allowlisted)                   |
-| GitHub              | auto-update releases (electron-updater) | `src/main/updater.ts` — feed from `app-update.yml` |
-| Discord IPC         | Rich Presence                           | `src/main/discordRPC.ts` — **hardcoded client ID** |
-| Google Fonts        | Plus Jakarta Sans / Space Grotesk       | `App.tsx` init + `LoadingScreen` (CSP allowlisted) |
+| Service             | Used for                                                                | Where                                              |
+| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
+| LRCLIB (lrclib.net) | synced lyrics auto-fetch (line-level only — LRCLIB has no word timings) | `useLyrics.ts` (CSP allowlisted)                   |
+| GitHub              | auto-update releases (electron-updater)                                 | `src/main/updater.ts` — feed from `app-update.yml` |
+| Discord IPC         | Rich Presence                                                           | `src/main/discordRPC.ts` — **hardcoded client ID** |
+| Google Fonts        | Plus Jakarta Sans / Space Grotesk                                       | `App.tsx` init + `LoadingScreen` (CSP allowlisted) |
 
 ## 18. Git / version history notes
 
-- Branch `master`; tags: `v1.0.0`, `v1.1.0`, `v1.3.0` (current), `stable`. package.json = `1.3.0`.
+- Branch `master`; tags: `v1.0.0`, `v1.1.0`, `v1.3.0`, `v1.5.0` (current), `stable`. package.json = `1.5.0`.
 - Notable past work: **v1.3.0** “website for smaller devices / docs folder” (docs site),
   **v1.1.0–1.3.0** global search, collapsible sidebar, top settings, smooth lyrics, UI overhaul,
-  video/fullscreen/scaling, better loading states. Many “old bugs” are guarded in code comments —
+  video/fullscreen/scaling, better loading states, **v1.5.x** `.ocfg` settings files, glass style,
+  word-by-word (karaoke) synced lyrics. Many “old bugs” are guarded in code comments —
   respect them (see §15.4/15.5/8 for seek/resume/error-handling rationale).
 
 ---

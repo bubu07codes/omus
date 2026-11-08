@@ -25,10 +25,35 @@ export interface Playlist {
   cover_gradient?: string | null
 }
 
+/**
+ * A single word of a lyric line with its own playback time. Only produced by
+ * word-synced sources — enhanced (A2) LRC files that carry inline `<mm:ss.xx>`
+ * tags in front of every word.
+ */
+export interface LyricWord {
+  /** Playback time (seconds) the word starts at (offset already applied). */
+  time: number
+  /** Word text exactly as written — includes any trailing space so the line can be rebuilt verbatim. */
+  text: string
+}
+
 export interface LyricLine {
   time: number
   text: string
+  /** Word-level timings from enhanced (A2) LRC. Absent on line-synced lyrics. */
+  words?: LyricWord[]
+  /** Playback time (seconds) the line stops being sung (next line start, or a fallback tail). */
+  endTime?: number
 }
+
+/**
+ * How word-by-word highlighting behaves:
+ *  - `off`         — line-by-line only (classic behaviour).
+ *  - `auto`        — highlight words only when the lyrics carry word timings.
+ *  - `interpolate` — like `auto`, but also spreads the words of plain
+ *                    line-synced lyrics evenly across the line's duration.
+ */
+export type LyricWordSyncMode = 'off' | 'auto' | 'interpolate'
 
 export interface Theme {
   id: string
@@ -91,6 +116,8 @@ export interface ToastMessage {
 }
 
 export type SortField = 'default' | 'title' | 'artist' | 'album' | 'duration' | 'added_at'
+
+export type LibrarySortField = 'title' | 'artist' | 'album' | 'duration' | 'added_at'
 export type SortDirection = 'asc' | 'desc'
 
 export interface SortConfig {

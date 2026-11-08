@@ -41,15 +41,16 @@ export function ContextMenu({
         {options.map((opt, i) => (
           <button
             key={i}
-            className="pl-opt-row"
-            style={{ color: opt.danger ? '#f87171' : 'var(--text-primary)', width: '100%' }}
+            className={`menu-opt${opt.danger ? ' danger' : ''}`}
             onClick={() => {
               opt.onClick()
               onClose()
             }}
           >
             {opt.icon && (
-              <span style={{ display: 'flex', alignItems: 'center', width: 18 }}>{opt.icon}</span>
+              <span className="opt-icon" style={{ width: 18 }}>
+                {opt.icon}
+              </span>
             )}
             {opt.label}
           </button>

@@ -259,7 +259,7 @@ export function GlobalSearch({
         {query ? (
           <button
             type="button"
-            className="gs-clear"
+            className="gs-clear icon-btn xs"
             title="Clear search"
             onClick={() => {
               setQuery('')
@@ -297,7 +297,11 @@ export function GlobalSearch({
             </div>
           ))}
           {flatItems.length === 0 && <div className="gs-empty">No matches for “{query}”</div>}
-          <button type="button" className="gs-footer" onClick={runSearchLibrary}>
+          <button
+            type="button"
+            className="gs-footer btn btn-ghost btn-sm"
+            onClick={runSearchLibrary}
+          >
             <Search size={12} />
             Search library for “{query.trim()}”
             <ArrowRight size={12} />

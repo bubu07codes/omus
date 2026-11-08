@@ -62,8 +62,7 @@ export function SleepTimerModal({
                   : formatRemaining(sleepTimer.remainingSeconds)}
               </div>
               <button
-                className="btn btn-ghost"
-                style={{ marginTop: 16, fontSize: 11 }}
+                className="btn btn-ghost btn-sm"
                 onClick={() => {
                   onCancelTimer()
                   onClose()
@@ -88,8 +87,7 @@ export function SleepTimerModal({
                 {[15, 30, 45, 60, 90].map((mins) => (
                   <button
                     key={mins}
-                    className="btn btn-ghost"
-                    style={{ padding: '10px 8px' }}
+                    className="btn btn-ghost btn-sm"
                     onClick={() => {
                       onStartTimer(mins, 'duration', fadeVolume)
                       onClose()
@@ -99,8 +97,7 @@ export function SleepTimerModal({
                   </button>
                 ))}
                 <button
-                  className="btn btn-ghost"
-                  style={{ padding: '10px 8px' }}
+                  className="btn btn-ghost btn-sm"
                   onClick={() => {
                     onStartTimer(0, 'end_of_track', fadeVolume)
                     onClose()
@@ -124,7 +121,7 @@ export function SleepTimerModal({
                   placeholder="Minutes..."
                 />
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-primary btn-sm"
                   disabled={!parseInt(customMinutes, 10)}
                   onClick={() => {
                     const mins = parseInt(customMinutes, 10)

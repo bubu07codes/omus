@@ -135,12 +135,7 @@ export function ManualLyricsModal({
                         >
                           {r.syncedLyrics ? 'Synced LRC' : 'Plain Text'}
                         </span>
-                        <button
-                          className="btn btn-ghost"
-                          style={{ fontSize: 11, padding: '4px 10px' }}
-                        >
-                          Apply
-                        </button>
+                        <button className="btn btn-ghost btn-sm">Apply</button>
                       </div>
                     </div>
                   ))}
@@ -156,6 +151,17 @@ export function ManualLyricsModal({
               <label className="lbl-caps" style={{ marginBottom: 6 }}>
                 Paste raw LRC or text lyrics
               </label>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--text-secondary)',
+                  marginBottom: 8,
+                  lineHeight: 1.5
+                }}
+              >
+                Word-by-word sync uses enhanced (A2) LRC — put a {'<mm:ss.xx>'} tag in front of
+                every word, e.g. {'[00:12.00]<00:12.00>Hel<00:12.40>lo'}.
+              </div>
               <textarea
                 className="field"
                 style={{
@@ -169,8 +175,7 @@ export function ManualLyricsModal({
                 onChange={(e) => setCustomLrc(e.target.value)}
               />
               <button
-                className="btn btn-primary"
-                style={{ marginTop: 12 }}
+                className="btn btn-primary btn-sm"
                 disabled={!customLrc.trim()}
                 onClick={() => {
                   onApplyLyrics(customLrc)

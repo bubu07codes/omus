@@ -509,19 +509,23 @@ export const GLOBAL_CSS = `
   .card-x { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; opacity: 0; transition: var(--transition); display: flex; align-items: center; justify-content: center; }
   .track-card:hover .card-x { opacity: 1; }
 
-  /* Buttons */
+  /* ============================================================
+     UNIFIED BUTTON SYSTEM — every interactive button in the app
+     uses one of these base classes so every view feels consistent.
+     Modifiers stack: .btn + .btn-primary + .btn-sm + .btn-pill
+     ============================================================ */
   .btn, .btn-primary, .btn-ghost, .btn-plain, .icon-btn, .switch-label, .rail-btn { font-family: var(--font); }
   button:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--accent);
+    box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
   }
+  /* Base button — glass outline, for secondary actions */
   .btn {
     border: none;
     cursor: pointer;
     border-radius: 10px;
     font-weight: 700;
     font-size: 12px;
-    font-family: var(--font);
     transition: var(--transition);
     display: inline-flex;
     align-items: center;
@@ -530,33 +534,45 @@ export const GLOBAL_CSS = `
     user-select: none;
     line-height: 1;
     white-space: nowrap;
+    padding: 9px 16px;
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--glass-edge);
+    box-shadow: inset 0 1px 0 var(--glass-sheen);
   }
-  .btn:hover { filter: brightness(1.1); }
+  .btn:hover { background: rgba(128,128,128,0.1); border-color: var(--accent); }
   .btn:active { transform: scale(0.97); }
   .btn:disabled { opacity: 0.45; cursor: not-allowed; filter: none; transform: none; }
 
+  /* Primary — accent fill, for the main action on a page / modal */
   .btn-primary {
     background: var(--accent);
     color: var(--bg);
-    padding: 10px 20px;
-    font-weight: 700;
+    border: none;
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 30%, transparent);
   }
-  .btn-primary:hover { filter: brightness(1.12); }
-  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, #ffffff);
+    box-shadow: 0 6px 22px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; filter: none; }
 
+  /* Ghost — glass fill, subtle secondary action */
   .btn-ghost {
     background: var(--glass-bg);
     color: var(--text-primary);
     border: 1px solid var(--glass-edge);
-    padding: 10px 20px;
     box-shadow: inset 0 1px 0 var(--glass-sheen);
   }
   .btn-ghost:hover {
-    background: rgba(128,128,128,0.12);
+    background: rgba(128,128,128,0.14);
     border-color: var(--accent);
   }
+  .btn-ghost:active { transform: scale(0.97); }
   .btn-ghost:disabled { opacity: 0.45; cursor: not-allowed; }
 
+  /* Plain — no fill / no border, for text-like actions in rows & toolbars */
   .btn-plain {
     background: transparent;
     border: none;
@@ -564,7 +580,6 @@ export const GLOBAL_CSS = `
     padding: 6px 10px;
     border-radius: 8px;
     cursor: pointer;
-    font-family: var(--font);
     font-size: 12px;
     font-weight: 700;
     display: inline-flex;
@@ -577,10 +592,11 @@ export const GLOBAL_CSS = `
   .btn-plain:active { transform: scale(0.97); }
   .btn-plain:disabled { opacity: 0.45; cursor: not-allowed; }
 
-  .btn-sm { padding: 6px 14px; font-size: 11.5px; border-radius: 8px; }
-  .btn-xs { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+  /* Sizes — stack on .btn / .btn-primary / .btn-ghost / .btn-plain */
+  .btn-sm { padding: 7px 14px; font-size: 11.5px; border-radius: 9px; }
+  .btn-xs { padding: 4px 10px; font-size: 11px; border-radius: 6px; font-weight: 700; }
+  .btn-lg { padding: 12px 24px; font-size: 13px; border-radius: 11px; }
   .btn-pill { border-radius: 999px; }
-
   .btn-accent-glow {
     box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 30%, transparent);
   }
@@ -588,6 +604,10 @@ export const GLOBAL_CSS = `
     box-shadow: 0 6px 22px color-mix(in srgb, var(--accent) 45%, transparent);
   }
 
+  /* Option chip size modifier */
+  .pl-opt-chip-sm { padding: 5px 12px; font-size: 12px; border-radius: 8px; }
+
+  /* Icon button — square icon-only controls (transport, toggle, etc.) */
   .icon-btn {
     width: 40px;
     height: 40px;
@@ -603,21 +623,59 @@ export const GLOBAL_CSS = `
     padding: 0;
     flex-shrink: 0;
   }
-  .icon-btn:hover { background: rgba(128,128,128,0.14); transform: scale(1.06); }
+  .icon-btn:hover { background: rgba(128,128,128,0.14); transform: scale(1.06); color: var(--text-primary); }
   .icon-btn:active { transform: scale(0.92); }
-  .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
   .icon-btn.sm { width: 34px; height: 34px; color: var(--text-secondary); position: relative; }
   .icon-btn.sm:hover { color: var(--text-primary); background: rgba(128,128,128,0.12); }
   .icon-btn.sm[data-active="true"] { color: var(--accent); background: rgba(128,128,128,0.14); }
   .icon-btn.sm[data-active="true"]::after { content:''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
-  .icon-btn.xs { width: 28px; height: 28px; }
+  .icon-btn.xs { width: 28px; height: 28px; color: var(--text-secondary); }
+  .icon-btn.xs:hover { color: var(--text-primary); background: rgba(128,128,128,0.12); }
 
-  /* Immunity guards against generic button animations that would distort delicate controls */
-  .title-bar-btn, .title-bar-close, .seg button, .switch-label, .pl-opt-row, .row-action, .queue-btn {
+  /* Icon button with accent fill (primary icon actions) */
+  .icon-btn.accent {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .icon-btn.accent:hover { filter: brightness(1.12); transform: scale(1.06); }
+
+  /* Immunity guards against generic button animations that would distort delicate controls.
+     row-action / queue-btn now use .icon-btn (which has its own controlled transforms), so they
+     are intentionally NOT in this guard any more. */
+  .title-bar-btn, .title-bar-close, .seg button, .switch-label, .pl-opt-row {
     transform: none !important;
     filter: none !important;
     box-shadow: none !important;
   }
+
+  /* Context menu options — unified menu button style */
+  .menu-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    text-align: left;
+    transition: var(--transition);
+  }
+  .menu-opt:hover {
+    background: rgba(128,128,128,0.1);
+    color: var(--text-primary);
+  }
+  .menu-opt:active { transform: scale(0.98); }
+  .menu-opt.danger { color: #f87171; }
+  .menu-opt.danger:hover { background: rgba(239,68,68,0.1); color: #f87171; }
+  .opt-icon { display: inline-flex; align-items: center; width: 18; }
 
   /* Form elements */
   .field { background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); color: var(--text-primary); padding: 10px 13px; border-radius: 10px; width: 100%; outline: none; font-size: 13px; font-family: var(--font); transition: var(--transition); }
@@ -766,8 +824,36 @@ export const GLOBAL_CSS = `
   .settings-nav-btn:hover { color: var(--text-primary); background: rgba(128,128,128,0.1); }
   .settings-nav-btn[data-active="true"] { color: var(--accent); background: rgba(128,128,128,0.12); box-shadow: inset 2px 0 0 var(--accent); }
   .settings-nav-btn svg { flex-shrink: 0; }
-  .settings-content { min-width: 0; }
+  .settings-content { min-width: 0; padding-top: 8px; }
   .settings-cat { scroll-margin-top: 12px; }
+  .settings-search {
+    position: sticky;
+    top: 12px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-edge);
+    margin-bottom: 18px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .settings-search > svg { color: var(--text-secondary); flex-shrink: 0; }
+  .settings-search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 13px;
+  }
+  .settings-search input::placeholder { color: var(--text-secondary); opacity: 0.6; }
+  .settings-cat[data-search-hide=\"true\"] { display: none; }
+  .settings-row[data-search-hide=\"true\"] { display: none !important; }
+
   @media (max-width: 900px) {
     .settings-layout { grid-template-columns: 1fr; }
     .settings-nav { position: static; flex-direction: row; overflow-x: auto; gap: 4px; }
@@ -922,6 +1008,63 @@ export const GLOBAL_CSS = `
      past/upcoming lines by ±14–18px, which must stay inside the viewport. */
   .lyrics-track { position: relative; will-change: transform; transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1); }
   /* Lyrics animation modes */
+  /* Word-by-word (karaoke) highlighting.
+     Deliberately flicker-proof: the word colours are plain color transitions
+     and the "being sung" highlight is a ::after PILL wiped with transform only.
+     Never paint the karaoke fill with background-clip/text-fill or a gradient
+     inside the active line — that combination sits on a will-change'd,
+     transition-animated line and makes Chromium re-rasterise the glyphs every
+     tick (the fill visibly shimmers/steps). The pill grows behind the text, so
+     the text itself is never touched between word changes.
+     Only the active line carries word colours (the selectors require
+     [data-active="true"]) — past lines' words keep inheriting the line colour,
+     so their dim/blur/scale animation is completely untouched. */
+  @property --lyric-word-progress {
+    syntax: '<number>';
+    inherits: false;
+    initial-value: 0.35;
+  }
+  .lyric-words { display: inline; }
+  /* Colour-only transition: cheap, no layout, no raster churn. */
+  .lyric-word { transition: color 0.18s ease; }
+  /* Backing-vocal / ad-lib text inside (brackets) — smaller, quieter, less distracting. */
+  .lyric-bracket {
+    font-size: 0.75em;
+    opacity: 0.7;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: color 0.18s ease;
+  }
+  .lyric-line[data-active="true"] .lyric-word[data-state="upcoming"] { color: var(--text-secondary); }
+  .lyric-line[data-active="true"] .lyric-bracket { color: var(--text-secondary); opacity: 0.55; }
+  .lyric-line[data-active="true"] .lyric-word[data-state="sung"] { color: var(--text-primary); }
+  .lyric-line[data-active="true"] .lyric-word[data-state="active"] {
+    color: var(--accent);
+    /* Own stacking context so the pill below stays behind THIS word's text. */
+    position: relative;
+    z-index: 0;
+    transition: color 0.18s ease, --lyric-word-progress 0.3s linear;
+  }
+  .lyric-line[data-active="true"] .lyric-word[data-state="active"]::after {
+    content: '';
+    position: absolute;
+    /* Negative insets: the pill never affects the line's layout, so nothing
+       reflows when the highlight moves from word to word. */
+    inset: -0.02em -0.16em -0.06em -0.16em;
+    border-radius: 0.4em;
+    background: var(--accent);
+    opacity: 0.16;
+    transform: scaleX(var(--lyric-word-progress, 0.35));
+    transform-origin: left center;
+    z-index: -1;
+    pointer-events: none;
+    /* One-shot fade-in per word — compositor-only (opacity). */
+    animation: lyricWordPill 0.18s ease-out both;
+  }
+  @keyframes lyricWordPill {
+    from { opacity: 0; }
+    to   { opacity: 0.16; }
+  }
   /* Compositor-friendly only (transform/opacity) + cheap text-shadow/color.
      NEVER transition filter: blur() — it re-rasterizes the whole line per
      frame and causes the stutter. */

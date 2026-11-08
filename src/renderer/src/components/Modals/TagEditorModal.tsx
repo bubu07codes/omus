@@ -101,17 +101,13 @@ export function TagEditorModal({
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>No Cover</span>
                 )}
               </div>
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: 11, padding: '6px 12px' }}
-                onClick={handleSelectCover}
-              >
+              <button className="btn btn-ghost btn-sm" onClick={handleSelectCover}>
                 <ImagePlus size={13} /> Change Art
               </button>
               {cover && (
                 <button
-                  className="btn-plain"
-                  style={{ fontSize: 10, color: '#f87171', padding: '2px 6px' }}
+                  className="btn-plain btn-xs"
+                  style={{ color: '#f87171' }}
                   onClick={() => setCover('')}
                 >
                   Remove Cover

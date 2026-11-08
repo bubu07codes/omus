@@ -176,7 +176,7 @@ export function MiniPlayer({
         <div className="mini-transport">
           <button
             type="button"
-            className="mini-btn"
+            className="mini-btn icon-btn sm"
             onClick={onPrev}
             title="Previous (Shift+←)"
             aria-label="Previous"
@@ -185,7 +185,7 @@ export function MiniPlayer({
           </button>
           <button
             type="button"
-            className="mini-btn mini-play"
+            className="mini-btn icon-btn sm mini-play accent"
             onClick={onTogglePlay}
             title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
             aria-label={isPlaying ? 'Pause' : 'Play'}
@@ -198,7 +198,7 @@ export function MiniPlayer({
           </button>
           <button
             type="button"
-            className="mini-btn"
+            className="mini-btn icon-btn sm"
             onClick={onNext}
             title="Next (Shift+→)"
             aria-label="Next"
@@ -215,7 +215,7 @@ export function MiniPlayer({
           >
             <button
               type="button"
-              className="mini-btn"
+              className="mini-btn icon-btn sm"
               onClick={onToggleMute}
               title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
               aria-label={isMuted ? 'Unmute' : 'Mute'}
@@ -242,7 +242,7 @@ export function MiniPlayer({
           <div className="mini-actions-right">
             <button
               type="button"
-              className="mini-btn"
+              className="mini-btn icon-btn sm"
               onClick={onRestore}
               title="Restore full window"
               aria-label="Restore full window"

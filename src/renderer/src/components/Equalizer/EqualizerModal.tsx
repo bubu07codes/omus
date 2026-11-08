@@ -53,10 +53,9 @@ export function EqualizerModal({
               {EQ_PRESETS.map((preset) => (
                 <button
                   key={preset.id}
-                  className="pl-opt-chip"
+                  className="pl-opt-chip pl-opt-chip-sm"
                   data-active={currentPreset === preset.id}
                   onClick={() => onPresetSelect(preset.id)}
-                  style={{ fontSize: 12, padding: '5px 12px' }}
                 >
                   {preset.name}
                 </button>
@@ -168,11 +167,7 @@ export function EqualizerModal({
         </div>
 
         <div className="modal-foot" style={{ justifyContent: 'space-between' }}>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => onPresetSelect('flat')}
-            style={{ fontSize: 11, padding: '6px 12px' }}
-          >
+          <button className="btn btn-ghost btn-sm" onClick={() => onPresetSelect('flat')}>
             <RotateCcw size={13} /> Reset to Flat
           </button>
           <button className="btn btn-primary" onClick={onClose}>
