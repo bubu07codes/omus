@@ -22,10 +22,22 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
     window.api
       ?.getAppVersion?.()
       .then(setAppVersion)
-      .catch(() => {
-        /* empty */
-      })
+      .catch(() => {})
   }, [])
+
+  const [logoClicks, setLogoClicks] = useState(0)
+  const [isSpinning, setIsSpinning] = useState(false)
+
+  const handleLogoClick = () => {
+    if (isSpinning) return
+    const nextClicks = logoClicks + 1
+    if (nextClicks >= 4) {
+      setIsSpinning(true)
+      setLogoClicks(0)
+    } else {
+      setLogoClicks(nextClicks)
+    }
+  }
 
   return (
     <div className="about-overlay" onClick={onClose}>
@@ -91,12 +103,42 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
           transform: scale(1.05);
         }
 
-        .about-title {
-          font-size: 28px;
-          font-weight: 800;
-          margin: 8px 0 4px;
-          letter-spacing: -0.5px;
-          color: var(--text-primary, #f4f4f5);
+        .about-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+
+        .about-logo-wrapper {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 80px;
+          height: 80px;
+          border-radius: 30px;
+          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+          cursor: pointer;
+          transition: transform 0.1s ease;
+        }
+        .about-logo-wrapper:active {
+          transform: scale(0.95);
+        }
+
+        .about-logo-wrapper.spinning {
+          animation: logoSpin 2s ease infinite;
+        }
+
+        @keyframes logoSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        .about-logo-img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          user-select: none;
         }
 
         .about-desc {
@@ -170,7 +212,23 @@ export function AboutModal({ isOpen, onClose, openExternal }: AboutModalProps) {
           <X size={16} />
         </button>
 
-        <h1 className="about-title">omus</h1>
+        <div className="about-header">
+          <div
+            className={`about-logo-wrapper ${isSpinning ? 'spinning' : ''}`}
+            onClick={handleLogoClick}
+          >
+            <img
+              src="./app.svg"
+              alt="omus logo"
+              className="about-logo-img"
+              draggable={false}
+              onError={(e) => {
+                const parent = e.currentTarget.parentElement
+                if (parent) parent.style.display = 'none'
+              }}
+            />
+          </div>
+        </div>
 
         <p className="about-desc">
           <strong>omus</strong> is a local desktop music player. Built natively with modern web

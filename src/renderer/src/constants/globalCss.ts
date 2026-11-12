@@ -502,7 +502,7 @@ export const GLOBAL_CSS = `
   /* Grid cards */
   .track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 18px; }
   .track-card { cursor: pointer; background: var(--glass-bg); padding: 12px; border-radius: 14px; border: 1px solid var(--glass-edge); position: relative; transition: var(--transition); overflow: hidden; box-shadow: inset 0 1px 0 var(--glass-sheen); }
-  .track-card:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 10px 25px -10px rgba(0,0,0,0.5); }
+  .track-card:hover { transform: translateY(-4px); border-color: var(--accent); }
   .track-card:active { transform: scale(0.98); }
   .track-card .art { width: 100%; aspect-ratio: 1/1; background: rgba(128,128,128,0.14); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
   .track-card .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -878,7 +878,7 @@ export const GLOBAL_CSS = `
     border-top: 1px solid var(--glass-edge);
     backdrop-filter: blur(var(--glass-blur)) saturate(160%);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-sheen);
+    box-shadow: inset 0 1px 0 var(--glass-sheen);
     display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center; padding: 0 24px; z-index: 100; user-select: none;
     transition: background 0.3s ease;
@@ -898,27 +898,26 @@ export const GLOBAL_CSS = `
   .sp-actions-left { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
   .sp-heart-btn { background: transparent; border: none; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 50%; transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1); }
   .sp-heart-btn:hover { color: var(--accent); transform: scale(1.15); }
-  .sp-heart-btn.liked { color: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+  .sp-heart-btn.liked { color: var(--accent); }
   .sp-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: clamp(320px, 34vw, 600px); max-width: 600px; padding: 0 16px; }
   .sp-controls { display: flex; align-items: center; gap: 16px; }
   .sp-btn-icon { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 7px; border-radius: 50%; position: relative; transition: var(--transition); }
   .sp-btn-icon:hover { color: var(--text-primary); transform: scale(1.08); }
   .sp-btn-icon[data-active="true"] { color: var(--accent); }
   .sp-btn-icon[data-active="true"]::after { content:''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
-  .sp-play-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: var(--bg); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1); box-shadow: 0 4px 14px rgba(0,0,0,0.25); padding: 0; }
-  .sp-play-btn:hover { transform: scale(1.1); filter: brightness(1.12); }
+  .sp-play-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: var(--bg); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); padding: 0; }
+  .sp-play-btn:hover { transform: scale(1.08); }
   .sp-play-btn:active { transform: scale(0.95); }
   .sp-play-btn:disabled { opacity: 0.45; cursor: not-allowed; }
   .sp-timeline { display: flex; align-items: center; gap: 10px; width: 100%; }
   .sp-time { font-size: 12px; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; min-width: 38px; text-align: center; }
   .sp-scrub-track { position: relative; flex: 1; height: 14px; display: flex; align-items: center; cursor: pointer; }
-  .sp-scrub-bg { width: 100%; height: 4px; border-radius: 4px; background: rgba(128,128,128,0.24); position: relative; overflow: visible; transition: height 0.15s ease; }
-  .sp-scrub-track:hover .sp-scrub-bg { height: 6px; }
+  .sp-scrub-bg { width: 100%; height: 5px; border-radius: 4px; background: rgba(128,128,128,0.24); position: relative; overflow: visible; }
   .sp-scrub-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--accent); border-radius: 4px; transform: scaleX(0); transform-origin: left center; will-change: transform; transition: transform 0.08s linear; }
   .sp-scrub-thumb-rail { position: absolute; inset: 0; pointer-events: none; transform: translateX(0); will-change: transform; }
-  .sp-scrub-thumb { position: absolute; left: 0; top: 50%; transform: translate(-50%,-50%) scale(0); width: 12px; height: 12px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1); }
+  .sp-scrub-thumb { position: absolute; left: 0; top: 50%; transform: translate(-50%,-50%) scale(0); width: 12px; height: 12px; border-radius: 50%; background: var(--text-primary); transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1); }
   .sp-scrub-track:hover .sp-scrub-thumb { transform: translate(-50%,-50%) scale(1); }
-  .sp-scrub-tooltip { position: absolute; bottom: 22px; transform: translateX(-50%); background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: var(--text-primary); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+  .sp-scrub-tooltip { position: absolute; bottom: 22px; transform: translateX(-50%); background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: var(--text-primary); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
   .sp-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; justify-self: end; }
   .sp-btn-lyrics { display: flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; background: var(--glass-bg-strong); border: 1px solid var(--glass-edge); color: var(--text-secondary); font-size: 12px; font-weight: 800; cursor: pointer; font-family: var(--font); transition: var(--transition); }
   .sp-btn-lyrics:hover { color: var(--text-primary); border-color: var(--accent); transform: translateY(-1px); }
@@ -1100,7 +1099,7 @@ export const GLOBAL_CSS = `
 
   /* Modals — overlay melts the app behind; the panel itself is glass on top. */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 32px; animation: fadeIn 0.15s ease; }
-  .modal { width: 100%; max-width: 920px; background: var(--glass-panel); border: 1px solid var(--glass-edge); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; max-height: 88vh; animation: fadeInSlide 0.2s cubic-bezier(0.16,1,0.3,1); box-shadow: 0 20px 60px rgba(0,0,0,0.65), inset 0 1px 0 var(--glass-sheen); backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(150%); -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(150%); position: relative; z-index: 1001; }
+  .modal { width: 100%; max-width: 920px; background: var(--glass-panel); border: 1px solid var(--glass-edge); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; max-height: 88vh; animation: fadeInSlide 0.2s cubic-bezier(0.16,1,0.3,1); box-shadow: inset 0 1px 0 var(--glass-sheen); backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(150%); -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 6px)) saturate(150%); position: relative; z-index: 1001; }
   .modal-head { padding: 20px 24px; border-bottom: 1px solid rgba(128,128,128,0.1); display: flex; justify-content: space-between; align-items: center; }
   .modal-body { display: grid; grid-template-columns: 260px 1fr; flex: 1; overflow: hidden; }
   .modal-list { border-right: 1px solid rgba(128,128,128,0.1); overflow-y: auto; padding: 10px; }
@@ -1234,10 +1233,9 @@ export const GLOBAL_CSS = `
     min-height: 0;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 6px 20px -6px rgba(0,0,0,0.22), inset 0 1px 0 var(--glass-sheen);
+    box-shadow: inset 0 1px 0 var(--glass-sheen);
     transition:
       border-color 0.22s ease,
-      box-shadow 0.22s ease,
       transform 0.22s cubic-bezier(0.16,1,0.3,1);
   }
   .home-tile::before {
@@ -1249,7 +1247,6 @@ export const GLOBAL_CSS = `
   }
   .home-tile:hover {
     border-color: color-mix(in srgb, var(--accent) 26%, rgba(128,128,128,0.24));
-    box-shadow: 0 12px 32px -8px rgba(0,0,0,0.32);
     transform: translateY(-2px);
   }
 
@@ -1269,7 +1266,7 @@ export const GLOBAL_CSS = `
     border: 1px solid var(--glass-edge);
     border-radius: 18px;
     padding: 22px 26px;
-    box-shadow: 0 14px 38px -8px rgba(0,0,0,0.45), inset 0 1px 0 var(--glass-sheen);
+    box-shadow: inset 0 1px 0 var(--glass-sheen);
   }
   .tile-hero:hover {
     border-color: color-mix(in srgb, var(--accent) 22%, rgba(128,128,128,0.24));

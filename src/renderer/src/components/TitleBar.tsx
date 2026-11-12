@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Minus, Square, Copy, X, Settings } from 'lucide-react'
+import logoSvg from '../../public/logo.svg'
 
 const IS_WINDOWS = typeof window !== 'undefined' && window.api?.platform === 'win32'
 
@@ -47,26 +48,26 @@ export function TitleBar({ onAbout, onSettings, center }: TitleBarProps): React.
         }
       }}
     >
-      <div
-        className="title-bar-logo"
-        onClick={() => onAbout?.()}
-        title="About Omus"
-        role="button"
-        tabIndex={0}
-        data-no-drag="true"
-      >
-        <img
-          src="/logo.svg"
-          alt="omus"
-          draggable={false}
-          onError={(e) => {
-            e.currentTarget.style.display = 'none'
-            const fb = e.currentTarget.nextElementSibling as HTMLElement
-            if (fb) fb.style.display = 'block'
-          }}
-        />
-        <span style={{ display: 'none', fontWeight: 800, fontSize: 18 }}>omus</span>
-      </div>
+<div
+      className="title-bar-logo"
+      onClick={() => onAbout?.()}
+      title="About Omus"
+      role="button"
+      tabIndex={0}
+      data-no-drag="true"
+    >
+      <img
+        src={logoSvg}
+        alt="omus"
+        draggable={false}
+        onError={(e) => {
+          e.currentTarget.style.display = 'none'
+          const fb = e.currentTarget.nextElementSibling as HTMLElement
+          if (fb) fb.style.display = 'block'
+        }}
+      />
+      <span style={{ display: 'none', fontWeight: 800, fontSize: 18 }}>omus</span>
+    </div>
 
       {IS_WINDOWS && center && <div className="title-bar-center">{center}</div>}
 
