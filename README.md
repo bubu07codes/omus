@@ -14,33 +14,33 @@
 
 <p align="center">
   <strong>No accounts. No tracking. No internet needed.</strong><br>
-  Just your music & video, directly from your hard drive.
+  Just your music & video, directly from your device.
 </p>
 
 <br>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/appgif1.3.0.gif" width="47%" alt="omus preview 1" />
-  <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/showcase1.3.0.webp" width="50%" alt="omus preview 2" />
+  <img src="https://raw.githubusercontent.com/bubu07codes/omus/master/github-assets/showcase1.7.0.webp" width="50%" alt="omus preview 2" />
 </p>
 
 ---
 
 ## ✨ Key Features
 
-- **🎧 Plays Anything:** Full support for `MP3`, `FLAC`, `WAV`, `M4A`, `OGG`, `AAC`, `WMA`, `ALAC`, `AIFF`, plus **video files** (`MP4`, `WEBM`, `MKV`, etc.) with a built-in video player.
-- **🎤 Synced LRC Lyrics:** Automatic online lookup via LRCLIB + manual LRC editor, timing offsets, and instant click-to-seek playback.
+- **🎧 Plays Anything:** Full support for all your favorite **audio and video files** `MP3`, `FLAC`, `WAV`, `M4A`, `OGG`, `AAC`, `WMA`, `ALAC`, `AIFF`, `MP4`, `WEBM`, `MKV`, etc. with a built-in video player.
+- **🎤 Synced Lyrics:** Automatic lyrics lookup via LRCLIB, timing offsets, and instant click-to-seek playback.
 - **🎚️ Pro Audio Controls:** Audio equalizer with presets, preamp/balance controls, crossfade transitions, and real-time visualizers.
 - **🔍 Instant Navigation:** Global search anywhere (`Ctrl + K`) to search across tracks, artists, albums, and playlists instantly.
 - **🎮 Discord Rich Presence:** Live integration displaying your currently playing track on your Discord profile.
 - **🏷️ Library Management:** M3U playlist import/export, metadata tag editor, custom playlist cover art, and drag-and-drop file import.
-- **🎨 Deep Customization:** Custom app themes, Font selections, UI scale adjustment, and fluid ambient background types.
+- **🎨 Make it fully yours:** Custom app themes, font selections, UI scale adjustment, and fluid ambient background types.
 
 ---
 
 ## 📥 Download
 
-Grab the latest installer: **[Here!](https://github.com/bubu07codes/omus/releases/latest/download/install-omus.exe)**
+Grab the **[latest installer!](https://github.com/bubu07codes/omus/releases/latest/download/install-omus.exe)**
 
 ---
 
